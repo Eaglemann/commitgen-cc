@@ -4,16 +4,28 @@
   "description": "AI git commit messages using local Ollama",
   "main": "dist/cli.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run --coverage",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
     "build": "tsc",
     "dev": "tsx src/cli.ts",
-    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "check": "npm run lint && npm run typecheck && npm run test",
     "prepare": "npm run build"
   },
   "keywords": [],
   "author": "Denis Tola",
   "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "dependencies": {
     "commander": "^14.0.2",
     "execa": "^9.6.1",
@@ -21,12 +33,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@vitest/coverage-v8": "^4.0.7",
     "@types/node": "^25.0.8",
     "@types/prompts": "^2.4.9",
     "eslint": "^9.39.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.53.0"
+    "typescript-eslint": "^8.53.0",
+    "vitest": "^4.0.7"
   },
   "bin": {
     "git-ai-commit": "dist/cli.js"

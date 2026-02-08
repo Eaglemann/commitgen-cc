@@ -1,5 +1,13 @@
 import { execa } from "execa";
 
+function getExitCode(error: unknown): number | null {
+    if (!error || typeof error !== "object") return null;
+    if (!("exitCode" in error)) return null;
+
+    const value = error.exitCode;
+    return typeof value === "number" ? value : null;
+}
+
 export async function isGitRepo(): Promise<boolean> {
     try {
         await execa("git", ["rev-parse", "--is-inside-work-tree"]);
@@ -14,9 +22,9 @@ export async function hasStagedChanges(): Promise<boolean> {
     try {
         await execa("git", ["diff", "--staged", "--quiet"]);
         return false;
-    } catch (e) {
-        if (typeof (e as any)?.exitCode === "number" && (e as any).exitCode === 1) return true;
-        throw e;
+    } catch (error: unknown) {
+        if (getExitCode(error) === 1) return true;
+        throw error;
     }
 }
 

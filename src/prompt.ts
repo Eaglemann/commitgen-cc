@@ -1,12 +1,13 @@
-import type { ChatMessage } from "./ollama";
+import type { ChatMessage } from "./ollama.js";
 
 type AllowedType = "feat" | "fix" | "chore" | "refactor" | "docs" | "test" | "perf" | "build" | "ci";
 
 const SYSTEM = `You write excellent git commit messages.
 
 Rules:
-- Output valid JSON object: { "message": "commit message string" }
-- NO markdown, NO commentary. JUST JSON.
+- Output ONLY valid JSON object with exactly one key: { "message": "..." }
+- Do not include any keys other than "message".
+- NO markdown and NO commentary.
 - Use Conventional Commits: type(scope optional): subject
 - Allowed types: feat, fix, chore, refactor, docs, test, perf, build, ci
 - Subject line: <= 72 chars, imperative mood, present tense, NO trailing period.
@@ -35,7 +36,7 @@ Input Data:
 ${opts.diff}
 --- END DIFF ---
 
-Output the commit message only. Do not repeat the task description.`;
+Return JSON only, exactly in this shape: { "message": "..." }.`;
 
     return [
         { role: "system", content: SYSTEM },
