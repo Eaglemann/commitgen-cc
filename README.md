@@ -76,8 +76,8 @@ git-ai-commit --ci --dry-run --output json
 
 ### Set an alias
 
-You can set a shorter alias (e.g. `gmac`) in your shell config (`.zshrc`, `.bashrc`, etc.):
+You can set a shorter alias (e.g. `aic`) in your shell config (`.zshrc`, `.bashrc`, etc.):
 
 ```bash
-alias gmac="git-ai-commit"
+alias aic="git-ai-commit"
 ```
