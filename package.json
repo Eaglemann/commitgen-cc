@@ -43,6 +43,6 @@
     "vitest": "^4.0.7"
   },
   "bin": {
-    "commitgen-cc": "./bin/index.js"
+    "commitgen-cc": "./dist/cli.js"
   }
 }
