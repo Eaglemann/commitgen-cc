@@ -39,7 +39,7 @@ const { runWorkflow } = await import("../../src/workflow.js");
 
 function baseOptions(overrides: Partial<WorkflowOptions> = {}): WorkflowOptions {
     return {
-        model: "llama3",
+        model: "gpt-oss:120b-cloud",
         host: "http://localhost:11434",
         maxChars: 16000,
         type: null,

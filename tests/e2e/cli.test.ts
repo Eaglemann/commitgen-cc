@@ -54,7 +54,7 @@ describe("cli e2e", () => {
         const server = await startServer((req, res) => {
             if (req.url === "/api/tags" && req.method === "GET") {
                 res.setHeader("content-type", "application/json");
-                res.end(JSON.stringify({ models: [{ name: "llama3:latest" }] }));
+                res.end(JSON.stringify({ models: [{ name: "gpt-oss:120b-cloud:latest" }] }));
                 return;
             }
 
@@ -82,7 +82,7 @@ describe("cli e2e", () => {
             "--host",
             server.host,
             "--model",
-            "llama3"
+            "gpt-oss:120b-cloud"
         ], { cwd: repoDir });
 
         expect(exitCode).toBe(0);

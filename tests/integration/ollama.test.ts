@@ -54,7 +54,7 @@ describe("ollama helpers", () => {
 
             if (req.url === "/api/tags" && req.method === "GET") {
                 res.setHeader("content-type", "application/json");
-                res.end(JSON.stringify({ models: [{ name: "llama3:latest" }] }));
+                res.end(JSON.stringify({ models: [{ name: "gpt-oss:120b-cloud:latest" }] }));
                 return;
             }
 
@@ -65,7 +65,7 @@ describe("ollama helpers", () => {
 
         const content = await ollamaChat({
             host: server.host,
-            model: "llama3",
+            model: "gpt-oss:120b-cloud",
             messages: [{ role: "user", content: "hello" }],
             json: true,
             retries: 2,
@@ -93,7 +93,7 @@ describe("ollama helpers", () => {
 
         await expect(() => ollamaChat({
             host: server.host,
-            model: "llama3",
+            model: "gpt-oss:120b-cloud",
             messages: [{ role: "user", content: "hello" }],
             json: true,
             retries: 0,
@@ -114,7 +114,7 @@ describe("ollama helpers", () => {
         });
         cleaners.push(server.close);
 
-        await expect(() => ensureLocalModel(server.host, "llama3", 1000))
+        await expect(() => ensureLocalModel(server.host, "gpt-oss:120b-cloud", 1000))
             .rejects
             .toMatchObject<OllamaError>({ code: "MODEL_NOT_FOUND" });
     });

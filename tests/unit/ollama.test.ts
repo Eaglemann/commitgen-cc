@@ -3,8 +3,7 @@ import {
     checkOllamaConnection,
     ensureLocalModel,
     listLocalModels,
-    ollamaChat,
-    OllamaError
+    ollamaChat
 } from "../../src/ollama.js";
 
 describe("ollama unit branches", () => {
@@ -18,7 +17,7 @@ describe("ollama unit branches", () => {
 
         await expect(() => listLocalModels("http://localhost:11434", 1000))
             .rejects
-            .toMatchObject<OllamaError>({ code: "HTTP_ERROR", retryable: true });
+            .toMatchObject({ code: "HTTP_ERROR", retryable: true });
     });
 
     it("returns INVALID_RESPONSE when /api/tags returns invalid json", async () => {
@@ -29,18 +28,18 @@ describe("ollama unit branches", () => {
 
         await expect(() => listLocalModels("http://localhost:11434", 1000))
             .rejects
-            .toMatchObject<OllamaError>({ code: "INVALID_RESPONSE" });
+            .toMatchObject({ code: "INVALID_RESPONSE" });
     });
 
     it("matches base model names against tagged local models", async () => {
         vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
-            models: [{ name: "llama3:latest" }]
+            models: [{ name: "gpt-oss:120b-cloud:latest" }]
         }), {
             status: 200,
             headers: { "content-type": "application/json" }
         })));
 
-        await expect(ensureLocalModel("http://localhost:11434", "llama3", 1000)).resolves.toBeUndefined();
+        await expect(ensureLocalModel("http://localhost:11434", "gpt-oss:120b-cloud", 1000)).resolves.toBeUndefined();
     });
 
     it("returns false from checkOllamaConnection when fetch fails", async () => {
@@ -54,11 +53,11 @@ describe("ollama unit branches", () => {
 
         await expect(() => ollamaChat({
             host: "http://localhost:11434",
-            model: "llama3",
+            model: "gpt-oss:120b-cloud",
             messages: [{ role: "user", content: "hello" }],
             retries: 0,
             timeoutMs: 1000
-        })).rejects.toMatchObject<OllamaError>({ code: "MODEL_NOT_FOUND" });
+        })).rejects.toMatchObject({ code: "MODEL_NOT_FOUND" });
     });
 
     it("returns INVALID_RESPONSE when chat content is empty", async () => {
@@ -71,11 +70,11 @@ describe("ollama unit branches", () => {
 
         await expect(() => ollamaChat({
             host: "http://localhost:11434",
-            model: "llama3",
+            model: "gpt-oss:120b-cloud",
             messages: [{ role: "user", content: "hello" }],
             retries: 0,
             timeoutMs: 1000
-        })).rejects.toMatchObject<OllamaError>({ code: "INVALID_RESPONSE" });
+        })).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
     });
 
     it("normalizes thrown Error objects into HTTP errors", async () => {
@@ -83,11 +82,11 @@ describe("ollama unit branches", () => {
 
         await expect(() => ollamaChat({
             host: "http://localhost:11434",
-            model: "llama3",
+            model: "gpt-oss:120b-cloud",
             messages: [{ role: "user", content: "hello" }],
             retries: 0,
             timeoutMs: 1000
-        })).rejects.toMatchObject<OllamaError>({ code: "HTTP_ERROR", message: "boom" });
+        })).rejects.toMatchObject({ code: "HTTP_ERROR", message: "boom" });
     });
 
     it("normalizes thrown non-error values into HTTP errors", async () => {
@@ -95,10 +94,10 @@ describe("ollama unit branches", () => {
 
         await expect(() => ollamaChat({
             host: "http://localhost:11434",
-            model: "llama3",
+            model: "llamgpt-oss:120b-clouda3",
             messages: [{ role: "user", content: "hello" }],
             retries: 0,
             timeoutMs: 1000
-        })).rejects.toMatchObject<OllamaError>({ code: "HTTP_ERROR", message: "boom-string" });
+        })).rejects.toMatchObject({ code: "HTTP_ERROR", message: "boom-string" });
     });
 });

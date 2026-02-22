@@ -34,7 +34,7 @@ commitgen-cc
 
 ### Options
 
-- `-m, --model <name>`: Specify Ollama model (default: `llama3`)
+- `-m, --model <name>`: Specify Ollama model (default: `gpt-oss:120b-cloud`)
 - `--host <url>`: Ollama host (default: `http://localhost:11434`)
 - `--max-chars <n>`: Max diff characters sent (range: `500-200000`, default: `16000`)
 - `--type <type>`: Force a commit type (feat, fix, etc.)
@@ -79,8 +79,12 @@ commitgen-cc --ci --dry-run --output json
 You can set a shorter alias (e.g. `aic`) in your shell config (`.zshrc`, `.bashrc`, etc.):
 
 ```bash
+<<<<<<< HEAD
 echo 'alias aic="commitgen-cc"' >> ~/.aliases \
 && { [ -n "$ZSH_VERSION" ] && echo '[ -f ~/.aliases ] && source ~/.aliases' >> ~/.zshrc; } \
 && { [ -n "$BASH_VERSION" ] && echo '[ -f ~/.aliases ] && source ~/.aliases' >> ~/.bashrc; } \
 && source ~/.aliases
+=======
+alias aic="commitgen-cc"
+>>>>>>> 7be0031 (refactor(cli): rename tool to commitgen-cc and switch default model)
 ```

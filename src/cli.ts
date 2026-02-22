@@ -116,7 +116,7 @@ async function main(): Promise<void> {
     program
         .name("git-ai-commit")
         .description("Generate a Conventional Commit message from staged changes using local Ollama")
-        .option("-m, --model <name>", "Ollama model name", readEnv("GIT_AI_MODEL", "llama3"))
+        .option("-m, --model <name>", "Ollama model name", readEnv("GIT_AI_MODEL", "gpt-oss:120b-cloud"))
         .option("--host <url>", "Ollama host", readEnv("GIT_AI_HOST", "http://localhost:11434"))
         .option("--max-chars <n>", `Max diff characters sent to model (${MIN_MAX_CHARS}-${MAX_MAX_CHARS})`, "16000")
         .option("--type <type>", "Force commit type (feat|fix|chore|refactor|docs|test|perf|build|ci)")
