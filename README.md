@@ -1,4 +1,4 @@
-# Git Message AI Commit
+# Commitgen-CC
 
 A CLI tool that uses a local [Ollama](https://ollama.com/) instance to generate Conventional Commits messages from your staged changes.
 
