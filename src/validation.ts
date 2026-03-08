@@ -32,33 +32,72 @@ function stripWrappingCodeFence(input: string): string {
     return match ? match[1].trim() : trimmed;
 }
 
-function parseMessageFromJson(input: string): string | null {
+function parseJsonPayload(input: string): unknown | null {
     try {
-        const parsed = JSON.parse(input) as unknown;
-        if (!parsed || typeof parsed !== "object") return null;
-        if (!("message" in parsed)) return null;
-
-        const value = parsed.message;
-        return typeof value === "string" ? value : null;
+        return JSON.parse(input) as unknown;
     } catch {
         return null;
     }
 }
 
-function parseMessageFromEmbeddedJson(input: string): string | null {
+function parseEmbeddedJsonPayload(input: string): unknown | null {
     const start = input.indexOf("{");
     const end = input.lastIndexOf("}");
-    if (start < 0 || end <= start) return null;
+    if (start >= 0 && end > start) {
+        return parseJsonPayload(input.slice(start, end + 1));
+    }
 
-    const block = input.slice(start, end + 1);
-    return parseMessageFromJson(block);
+    const arrayStart = input.indexOf("[");
+    const arrayEnd = input.lastIndexOf("]");
+    if (arrayStart < 0 || arrayEnd <= arrayStart) return null;
+
+    return parseJsonPayload(input.slice(arrayStart, arrayEnd + 1));
+}
+
+function parseMessageFromPayload(payload: unknown): string | null {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+    if (!("message" in payload)) return null;
+
+    const value = payload.message;
+    return typeof value === "string" ? value : null;
+}
+
+function normalizeMessageList(messages: string[]): string[] {
+    return messages
+        .map((message) => normalizeMessage(stripWrappingCodeFence(message)))
+        .filter((message) => message.length > 0);
+}
+
+function parseMessageListFromPayload(payload: unknown): string[] | null {
+    if (Array.isArray(payload)) {
+        if (payload.every((entry) => typeof entry === "string")) {
+            return normalizeMessageList(payload);
+        }
+        return null;
+    }
+
+    if (!payload || typeof payload !== "object") return null;
+    if (!("messages" in payload)) return null;
+
+    const value = payload.messages;
+    if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) return null;
+
+    return normalizeMessageList(value as string[]);
 }
 
 export function extractMessageFromModelOutput(raw: string): string {
     const noFence = stripWrappingCodeFence(raw ?? "");
-    const jsonMessage = parseMessageFromJson(noFence) ?? parseMessageFromEmbeddedJson(noFence);
+    const payload = parseJsonPayload(noFence) ?? parseEmbeddedJsonPayload(noFence);
+    const jsonMessage = parseMessageFromPayload(payload);
     const candidate = jsonMessage ?? noFence;
     return normalizeMessage(stripWrappingCodeFence(candidate));
+}
+
+export function extractMessageListFromModelOutput(raw: string): string[] | null {
+    const noFence = stripWrappingCodeFence(raw ?? "");
+    const payload = parseJsonPayload(noFence) ?? parseEmbeddedJsonPayload(noFence);
+    const messages = parseMessageListFromPayload(payload);
+    return messages && messages.length > 0 ? messages : null;
 }
 
 export function validateMessage(message: string): ValidationResult {
