@@ -31,6 +31,21 @@ export function parseBoundedInteger(value: string, name: string, min: number, ma
     return parsed;
 }
 
+export function normalizeScopeName(scope: string | null | undefined): string | null {
+    if (!scope) return null;
+
+    const compact = scope
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/[()]/g, "");
+
+    return compact || null;
+}
+
+export function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function normalizeErrorMessage(error: unknown, fallback: string): string {
     if (error instanceof Error && error.message.trim()) return error.message;
     if (typeof error === "string" && error.trim()) return error;
