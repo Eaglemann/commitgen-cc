@@ -98,7 +98,7 @@ function matchesModel(requested: string, available: string): boolean {
     const model = available.toLowerCase();
 
     if (req === model) return true;
-    if (!req.includes(":") && model.startsWith(`${req}:`)) return true;
+    if (model.startsWith(`${req}:`)) return true;
     return false;
 }
 
