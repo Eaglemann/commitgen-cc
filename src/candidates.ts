@@ -36,7 +36,11 @@ function toCandidateDraft(
 async function requestModelOutput(
     context: RepoContext,
     options: ResolvedWorkflowOptions,
-    candidateCount: number
+    candidateCount: number,
+    revisionRequest?: {
+        currentMessage: string;
+        feedback: string;
+    }
 ): Promise<string> {
     const messages = buildMessages({
         diff: context.diff,
@@ -48,7 +52,8 @@ async function requestModelOutput(
         forcedType: options.type,
         forcedScope: options.scope,
         knownScopes: options.knownScopes,
-        candidateCount
+        candidateCount,
+        revisionRequest
     });
 
     return (await ollamaChat({
@@ -116,4 +121,25 @@ export async function generateCandidates(
         expectedScope: context.effectiveScope,
         ticket: context.ticket
     });
+}
+
+export async function reviseCandidate(
+    context: RepoContext,
+    options: ResolvedWorkflowOptions,
+    currentMessage: string,
+    feedback: string
+): Promise<RankedCandidate> {
+    const raw = await requestModelOutput(context, options, 1, {
+        currentMessage,
+        feedback
+    });
+    const candidate = toCandidateDraft(extractMessageFromModelOutput(raw), context, options);
+    return {
+        ...candidate,
+        score: rankCandidates([candidate], {
+            expectedType: context.expectedType,
+            expectedScope: context.effectiveScope,
+            ticket: context.ticket
+        })[0]?.score ?? 0
+    };
 }

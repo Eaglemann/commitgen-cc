@@ -2,7 +2,6 @@ import {
     DEFAULT_HISTORY_ENABLED,
     DEFAULT_HISTORY_SAMPLE_SIZE,
     DEFAULT_HOST,
-    DEFAULT_INTERACTIVE_CANDIDATES,
     DEFAULT_MAX_CHARS,
     DEFAULT_MODEL,
     DEFAULT_TICKET_PATTERN,
@@ -110,15 +109,8 @@ export function resolveWorkflowOptions(
     options: WorkflowOptions,
     repoConfig: RepoConfig
 ): ResolvedWorkflowOptions {
-    const interactiveCandidates = ensureBoundedNumber(
-        repoConfig.interactiveCandidates ?? DEFAULT_INTERACTIVE_CANDIDATES,
-        "interactiveCandidates",
-        MIN_CANDIDATES,
-        MAX_CANDIDATES
-    );
-
     const requestedCandidates = options.candidates
-        ?? (options.ci || options.dryRun ? 1 : interactiveCandidates);
+        ?? 1;
 
     const historySampleSize = ensureBoundedNumber(
         repoConfig.historySampleSize ?? DEFAULT_HISTORY_SAMPLE_SIZE,

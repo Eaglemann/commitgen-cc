@@ -53,6 +53,10 @@ export function buildMessages(opts: {
     forcedScope: string | null;
     knownScopes?: string[];
     candidateCount?: number;
+    revisionRequest?: {
+        currentMessage: string;
+        feedback: string;
+    };
 }): ChatMessage[] {
     const candidateCount = Math.max(1, Math.floor(opts.candidateCount ?? 1));
     const constraints = [
@@ -81,10 +85,22 @@ export function buildMessages(opts: {
     const batchInstruction = candidateCount > 1
         ? `Generate ${candidateCount} distinct candidate commit messages and keep them concise.`
         : "Generate one specific and concise Conventional Commit message.";
+    const taskInstruction = opts.revisionRequest
+        ? "Revise the existing commit message based on the user feedback while preserving the repository intent and constraints."
+        : batchInstruction;
     const responseShape = candidateCount > 1
         ? `Return JSON only, exactly in this shape: { "messages": ["...", "..."] }. Return exactly ${candidateCount} messages.`
         : 'Return JSON only, exactly in this shape: { "message": "..." }.';
-    const user = `Task: ${batchInstruction}
+    const revisionContext = opts.revisionRequest
+        ? `Current Message:
+${opts.revisionRequest.currentMessage}
+
+Revision Feedback:
+${opts.revisionRequest.feedback}
+
+`
+        : "";
+    const user = `Task: ${taskInstruction}
 
 Constraints:
 ${constraints}
@@ -97,7 +113,7 @@ Input Data:
 ${opts.diff}
 --- END DIFF ---
 
-${responseShape}`;
+${revisionContext}${responseShape}`;
 
     return [
         { role: "system", content: buildSystemMessage(candidateCount) },
