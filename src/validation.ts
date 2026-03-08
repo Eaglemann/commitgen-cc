@@ -1,9 +1,12 @@
+import { escapeRegExp, normalizeScopeName } from "./util.js";
+
 export type AllowedType = "feat" | "fix" | "chore" | "refactor" | "docs" | "test" | "perf" | "build" | "ci";
 
 export const ALLOWED_TYPES: AllowedType[] = ["feat", "fix", "chore", "refactor", "docs", "test", "perf", "build", "ci"];
 export const ALLOWED_TYPES_SET = new Set<AllowedType>(ALLOWED_TYPES);
 
 export type ValidationResult = { ok: true } | { ok: false, reason: string };
+export type ParsedSubject = { type: string, scope: string | null, description: string };
 
 const SUBJECT_REGEX = /^([a-z]+)(\([^)]+\))?!?:\s(.+)$/;
 
@@ -102,6 +105,7 @@ type RepairOptions = {
     diff: string;
     forcedType: AllowedType | null;
     scope: string | null;
+    ticket?: string | null;
 };
 
 export type RepairResult = {
@@ -109,20 +113,28 @@ export type RepairResult = {
     didRepair: boolean;
 };
 
-function normalizeScope(scope: string | null): string | null {
-    if (!scope) return null;
-    const compact = scope.trim().replace(/\s+/g, "-").replace(/[()]/g, "");
-    return compact || null;
-}
-
-function parseTypedSubject(subject: string): { type: string, scope: string | null, description: string } | null {
+export function parseConventionalSubject(subject: string): ParsedSubject | null {
     const typed = subject.match(/^([A-Za-z]+)(?:\(([^)]+)\))?!?:\s*(.+)$/);
     if (!typed) return null;
     return {
         type: typed[1].toLowerCase(),
-        scope: typed[2] ? typed[2].trim() : null,
+        scope: typed[2] ? normalizeScopeName(typed[2]) : null,
         description: typed[3].trim()
     };
+}
+
+export function messageMentionsTicket(message: string, ticket: string | null): boolean {
+    if (!ticket) return false;
+    return new RegExp(`\\b${escapeRegExp(ticket)}\\b`).test(message);
+}
+
+export function appendTicketFooter(message: string, ticket: string | null): string {
+    const normalized = normalizeMessage(message);
+    if (!ticket || !normalized || messageMentionsTicket(normalized, ticket)) {
+        return normalized;
+    }
+
+    return normalizeMessage(`${normalized}\n\nRefs ${ticket}`);
 }
 
 function parseLooseTypedSubject(subject: string): { type: string, description: string } | null {
@@ -152,14 +164,14 @@ export function repairMessage(options: RepairOptions): RepairResult {
     const bodyBlock = body ? `\n\n${body}` : "";
 
     const forcedType = options.forcedType;
-    const normalizedScope = normalizeScope(options.scope);
+    const normalizedScope = normalizeScopeName(options.scope);
     const inferredType = forcedType ?? inferTypeFromDiff(options.diff);
 
     let selectedType: AllowedType | null = null;
     let selectedScope: string | null = null;
     let description = originalSubject;
 
-    const typed = parseTypedSubject(originalSubject);
+    const typed = parseConventionalSubject(originalSubject);
     if (typed) {
         if (isAllowedType(typed.type)) selectedType = typed.type;
         selectedScope = typed.scope;
@@ -186,7 +198,7 @@ export function repairMessage(options: RepairOptions): RepairResult {
         repairedSubject = description;
     }
 
-    const repaired = normalizeMessage(`${repairedSubject}${bodyBlock}`);
+    const repaired = appendTicketFooter(`${repairedSubject}${bodyBlock}`, options.ticket ?? null);
     return {
         message: repaired,
         didRepair: repaired !== original
