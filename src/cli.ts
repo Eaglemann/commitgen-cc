@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { DEFAULT_RETRIES, DEFAULT_TIMEOUT_MS } from "./config.js";
 import { ExitCode } from "./exit-codes.js";
+import { getMessageSubject } from "./finalize.js";
 import { parseBoundedInteger } from "./util.js";
 import { isAllowedType, type AllowedType } from "./validation.js";
 import { runWorkflow, type OutputFormat, type WorkflowOptions, type WorkflowResult } from "./workflow.js";
@@ -135,7 +136,7 @@ function printText(result: WorkflowResult, options: WorkflowOptions): void {
         if (options.ci) {
             console.log(result.message);
         } else {
-            console.log("Committed.");
+            console.log(`Committed: ${getMessageSubject(result.message)}`);
         }
         return;
     }
