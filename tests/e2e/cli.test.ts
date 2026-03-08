@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execa } from "execa";
@@ -10,16 +10,17 @@ async function initRepo(repoDir: string): Promise<void> {
     await execa("git", ["config", "user.name", "Test User"], { cwd: repoDir });
 }
 
-describe("cli e2e", () => {
-    it("emits JSON success output in CI dry-run mode with repo config, ticket inference, and alternatives", async () => {
-        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
-        await initRepo(repoDir);
-        await writeFile(join(repoDir, "README.md"), "# Demo\n");
-        await writeFile(join(repoDir, ".commitgen.json"), JSON.stringify({
-            model: "repo-model",
-            host: "http://repo-config-host"
-        }, null, 2));
-        await writeFile(join(repoDir, "mock-fetch.mjs"), `
+function getCliPath(): string {
+    return resolve(process.cwd(), "dist/cli.js");
+}
+
+function getNodeBin(): string {
+    return process.execPath;
+}
+
+async function writeMockFetch(repoDir: string): Promise<string> {
+    const bootstrapPath = join(repoDir, "mock-fetch.mjs");
+    await writeFile(bootstrapPath, `
 const chatResponses = JSON.parse(process.env.MOCK_OLLAMA_CHAT_RESPONSES ?? "[]");
 const models = JSON.parse(process.env.MOCK_OLLAMA_MODELS ?? "[]");
 
@@ -43,16 +44,26 @@ globalThis.fetch = async (url) => {
   return new Response("not found", { status: 404 });
 };
 `);
+    return bootstrapPath;
+}
+
+describe("cli e2e", () => {
+    it("emits JSON success output in CI dry-run mode with repo config, ticket inference, and alternatives", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
+        await initRepo(repoDir);
+        await writeFile(join(repoDir, "README.md"), "# Demo\n");
+        await writeFile(join(repoDir, ".commitgen.json"), JSON.stringify({
+            model: "repo-model",
+            host: "http://repo-config-host"
+        }, null, 2));
+        const bootstrapPath = await writeMockFetch(repoDir);
         await execa("git", ["checkout", "-b", "feature/ABC-123-readme"], { cwd: repoDir });
         await execa("git", ["add", "README.md"], { cwd: repoDir });
 
-        const nodeBin = process.execPath;
-        const cliPath = resolve(process.cwd(), "dist/cli.js");
-        const bootstrapPath = join(repoDir, "mock-fetch.mjs");
-        const { stdout, exitCode } = await execa(nodeBin, [
+        const { stdout, exitCode } = await execa(getNodeBin(), [
             "--import",
             bootstrapPath,
-            cliPath,
+            getCliPath(),
             "--ci",
             "--dry-run",
             "--output",
@@ -94,11 +105,8 @@ globalThis.fetch = async (url) => {
         const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
         await initRepo(repoDir);
 
-        const nodeBin = process.execPath;
-        const cliPath = resolve(process.cwd(), "dist/cli.js");
-
-        const error = await execa(nodeBin, [
-            cliPath,
+        const error = await execa(getNodeBin(), [
+            getCliPath(),
             "--ci",
             "--output",
             "json"
@@ -114,5 +122,92 @@ globalThis.fetch = async (url) => {
         expect(payload.status).toBe("error");
         expect(payload.code).toBe("GIT_CONTEXT_ERROR");
         expect(payload.hint).toContain("Stage files first");
+    });
+
+    it("installs and uninstalls managed hooks", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-hooks-"));
+        await initRepo(repoDir);
+
+        await execa(getNodeBin(), [getCliPath(), "install-hook"], { cwd: repoDir });
+
+        const prepareHookPath = join(repoDir, ".git", "hooks", "prepare-commit-msg");
+        const commitHookPath = join(repoDir, ".git", "hooks", "commit-msg");
+        const prepareHook = await readFile(prepareHookPath, "utf8");
+        const commitHook = await readFile(commitHookPath, "utf8");
+        const prepareStats = await stat(prepareHookPath);
+
+        expect(prepareHook).toContain("commitgen-cc managed hook");
+        expect(commitHook).toContain("commitgen-cc managed hook");
+        expect(prepareStats.mode & 0o111).not.toBe(0);
+
+        await execa(getNodeBin(), [getCliPath(), "uninstall-hook"], { cwd: repoDir });
+        await expect(stat(prepareHookPath)).rejects.toThrow();
+        await expect(stat(commitHookPath)).rejects.toThrow();
+    });
+
+    it("generates a commit message through the prepare-commit-msg hook", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-hooks-"));
+        await initRepo(repoDir);
+        await writeFile(join(repoDir, "README.md"), "# Demo\n");
+        const bootstrapPath = await writeMockFetch(repoDir);
+        await execa("git", ["add", "README.md"], { cwd: repoDir });
+        await execa(getNodeBin(), [getCliPath(), "install-hook"], { cwd: repoDir });
+
+        const messageFile = join(repoDir, "COMMIT_EDITMSG");
+        await writeFile(messageFile, "");
+
+        const hookResult = await execa(join(repoDir, ".git", "hooks", "prepare-commit-msg"), [messageFile], {
+            cwd: repoDir,
+            env: {
+                NODE_OPTIONS: `--import ${bootstrapPath}`,
+                MOCK_OLLAMA_MODELS: JSON.stringify(["gpt-oss:120b-cloud:latest"]),
+                MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
+                    "{\"message\":\"docs: update readme\"}"
+                ])
+            }
+        });
+
+        expect(hookResult.exitCode).toBe(0);
+        await expect(readFile(messageFile, "utf8")).resolves.toContain("docs: update readme");
+    });
+
+    it("blocks invalid commit messages through the commit-msg hook and validates files via lint-message", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-hooks-"));
+        await initRepo(repoDir);
+        await writeFile(join(repoDir, ".commitgen.json"), JSON.stringify({
+            hookMode: "enforce",
+            requireTicket: true
+        }, null, 2));
+        await execa(getNodeBin(), [getCliPath(), "install-hook"], { cwd: repoDir });
+
+        const messageFile = join(repoDir, "COMMIT_EDITMSG");
+        await writeFile(messageFile, "bad message\n");
+
+        const hookResult = await execa(join(repoDir, ".git", "hooks", "commit-msg"), [messageFile], {
+            cwd: repoDir,
+            reject: false
+        });
+
+        expect(hookResult.exitCode).toBe(4);
+        expect(hookResult.stderr).toContain("Commit message failed validation.");
+
+        await writeFile(messageFile, "fix(cli): tighten hook flow\n\nRefs ABC-123\n");
+        const lintResult = await execa(getNodeBin(), [
+            getCliPath(),
+            "lint-message",
+            "--file",
+            messageFile,
+            "--output",
+            "json"
+        ], { cwd: repoDir });
+
+        const payload = JSON.parse(lintResult.stdout) as {
+            status: string;
+            subject: string;
+            ticket: string;
+        };
+        expect(payload.status).toBe("ok");
+        expect(payload.subject).toBe("fix(cli): tighten hook flow");
+        expect(payload.ticket).toBe("ABC-123");
     });
 });
