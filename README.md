@@ -122,7 +122,9 @@ Notes:
 
 - No `NPM_TOKEN` GitHub secret is required for trusted publishing.
 - The workflow file name matters. npm must trust `release.yml` exactly.
+- npm only allows one trusted publisher per package, so `release.yml` must be the only active trusted publisher entry for this package.
 - The tag must match `package.json` exactly. Example: package version `3.1.1` must be pushed as tag `v3.1.1`.
+- If `npm publish` still fails with `E404` after this fix, the trusted publisher details on npm are still mismatched with the package/repo/workflow.
 - If you later rename the workflow file, npm must be updated to trust the new filename.
 
 ### Exit codes
