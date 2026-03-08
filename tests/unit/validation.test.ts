@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     extractMessageFromModelOutput,
+    extractMessageListFromModelOutput,
     inferTypeFromDiff,
     parseConventionalSubject,
     repairMessage,
@@ -46,6 +47,29 @@ describe("extractMessageFromModelOutput", () => {
     it("falls back to plain text when json shape is invalid", () => {
         const raw = "{\"message\":123}";
         expect(extractMessageFromModelOutput(raw)).toBe("{\"message\":123}");
+    });
+});
+
+describe("extractMessageListFromModelOutput", () => {
+    it("extracts message arrays from strict json output", () => {
+        const raw = "{\"messages\":[\"fix: handle null response\",\"docs: update readme\"]}";
+        expect(extractMessageListFromModelOutput(raw)).toEqual([
+            "fix: handle null response",
+            "docs: update readme"
+        ]);
+    });
+
+    it("extracts message arrays from embedded json output", () => {
+        const raw = "prefix {\"messages\":[\"fix: handle crash\",\"feat: add retries\"]} trailing";
+        expect(extractMessageListFromModelOutput(raw)).toEqual([
+            "fix: handle crash",
+            "feat: add retries"
+        ]);
+    });
+
+    it("returns null when the model does not return a list shape", () => {
+        const raw = "{\"message\":\"fix: handle crash\"}";
+        expect(extractMessageListFromModelOutput(raw)).toBeNull();
     });
 });
 
