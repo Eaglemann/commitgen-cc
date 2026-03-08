@@ -98,15 +98,25 @@ JSON success output now includes `scope`, `ticket`, and `alternatives` when avai
 
 ## Automatic npm publish
 
-This repo now publishes automatically from GitHub Actions on every push to `main` after CI passes.
+This repo publishes automatically from GitHub Actions on pushes to `main` after CI passes, using npm trusted publishing via GitHub OIDC.
 
 Setup:
 
-1. Create an npm automation token for the package owner.
-2. Add it to the GitHub repo as the `NPM_TOKEN` Actions secret.
-3. Push to `main`.
+1. Open the npm package settings for `commitgen-cc`.
+2. Add a Trusted Publisher for GitHub Actions with:
+   - owner: `Eaglemann`
+   - repository: `Git-Message-AI-Commit`
+   - workflow filename: `ci.yml`
+   - branch: `main`
+3. Push to `main` from this repository.
 
 The workflow publishes only when the version in `package.json` is not already on npm. If you push without bumping the version, the publish job will skip instead of failing.
+
+Notes:
+
+- No `NPM_TOKEN` GitHub secret is required for trusted publishing.
+- The workflow file name matters. npm must trust `ci.yml` exactly.
+- If you later rename the workflow file or split publishing into a different workflow, you must update the trusted publisher configuration on npm.
 
 ### Exit codes
 
