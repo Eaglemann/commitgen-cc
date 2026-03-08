@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     extractMessageFromModelOutput,
     inferTypeFromDiff,
+    parseConventionalSubject,
     repairMessage,
     validateMessage
 } from "../../src/validation.js";
@@ -71,6 +72,18 @@ describe("repairMessage", () => {
         expect(repaired.message).toBe("refactor(core-api): fix parser edge case");
     });
 
+    it("appends a ticket footer when one is inferred", () => {
+        const repaired = repairMessage({
+            message: "fix parser edge case.",
+            diff: "diff --git a/src/parser.ts b/src/parser.ts",
+            forcedType: "fix",
+            scope: "core",
+            ticket: "ABC-123"
+        });
+
+        expect(repaired.message).toBe("fix(core): fix parser edge case\n\nRefs ABC-123");
+    });
+
     it("normalizes loose typed subjects", () => {
         const repaired = repairMessage({
             message: "FEAT - add retries.",
@@ -80,6 +93,16 @@ describe("repairMessage", () => {
         });
 
         expect(repaired.message).toBe("feat: add retries");
+    });
+});
+
+describe("parseConventionalSubject", () => {
+    it("extracts normalized type and scope", () => {
+        expect(parseConventionalSubject("Feat(Core Api): tighten parser")).toEqual({
+            type: "feat",
+            scope: "Core-Api",
+            description: "tighten parser"
+        });
     });
 });
 
