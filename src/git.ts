@@ -33,6 +33,30 @@ export async function getStagedDiff(): Promise<string> {
     return stdout ?? "";
 }
 
+export async function getStagedFiles(): Promise<string[]> {
+    const { stdout } = await execa("git", ["diff", "--staged", "--name-only", "--"]);
+    return (stdout ?? "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+}
+
+export async function getRepoRoot(): Promise<string> {
+    const { stdout } = await execa("git", ["rev-parse", "--show-toplevel"]);
+    return stdout.trim();
+}
+
+export async function getGitDir(): Promise<string> {
+    const { stdout } = await execa("git", ["rev-parse", "--absolute-git-dir"]);
+    return stdout.trim();
+}
+
+export async function getCurrentBranch(): Promise<string | null> {
+    const { stdout } = await execa("git", ["branch", "--show-current"]);
+    const branch = stdout.trim();
+    return branch || null;
+}
+
 export async function gitCommit(message: string, opts: { noVerify?: boolean } = {}): Promise<void> {
     const args = ["commit", "-m", message];
     if (opts.noVerify) args.push("--no-verify");
