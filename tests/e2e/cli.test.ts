@@ -64,9 +64,7 @@ globalThis.fetch = async (url) => {
             env: {
                 MOCK_OLLAMA_MODELS: JSON.stringify(["repo-model:latest"]),
                 MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
-                    "{\"message\":\"docs: update readme\"}",
-                    "{\"message\":\"docs: refine readme guidance\"}",
-                    "{\"message\":\"docs: tighten readme copy\"}"
+                    "{\"messages\":[\"docs: update readme\",\"docs: refine readme guidance\",\"docs: tighten readme copy\"]}"
                 ])
             }
         });
