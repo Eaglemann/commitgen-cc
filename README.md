@@ -4,7 +4,7 @@ A CLI tool that uses a local [Ollama](https://ollama.com/) instance to generate 
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (v20+)
 - [Ollama](https://ollama.com/) running locally (default: `http://localhost:11434`)
 - `git`
 
@@ -136,12 +136,5 @@ Notes:
 You can set a shorter alias (e.g. `aic`) in your shell config (`.zshrc`, `.bashrc`, etc.):
 
 ```bash
-<<<<<<< HEAD
-echo 'alias aic="commitgen-cc"' >> ~/.aliases \
-&& { [ -n "$ZSH_VERSION" ] && echo '[ -f ~/.aliases ] && source ~/.aliases' >> ~/.zshrc; } \
-&& { [ -n "$BASH_VERSION" ] && echo '[ -f ~/.aliases ] && source ~/.aliases' >> ~/.bashrc; } \
-&& source ~/.aliases
-=======
 alias aic="commitgen-cc"
->>>>>>> 7be0031 (refactor(cli): rename tool to commitgen-cc and switch default model)
 ```
