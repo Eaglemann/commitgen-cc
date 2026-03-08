@@ -6,12 +6,14 @@ describe("scoreCandidate", () => {
         const specific = scoreCandidate("feat(cli): add config support\n\nRefs ABC-123", { ok: true }, {
             expectedType: "feat",
             expectedScope: "cli",
-            ticket: "ABC-123"
+            ticket: "ABC-123",
+            subjectMaxLength: 72
         });
         const generic = scoreCandidate("misc changes", { ok: false, reason: "Not Conventional Commits format" }, {
             expectedType: "feat",
             expectedScope: "cli",
-            ticket: "ABC-123"
+            ticket: "ABC-123",
+            subjectMaxLength: 72
         });
 
         expect(specific).toBeGreaterThan(generic);
@@ -34,7 +36,8 @@ describe("rankCandidates", () => {
         ], {
             expectedType: "feat",
             expectedScope: "cli",
-            ticket: "ABC-123"
+            ticket: "ABC-123",
+            subjectMaxLength: 72
         });
 
         expect(candidates[0].message).toBe("feat(cli): add config support\n\nRefs ABC-123");

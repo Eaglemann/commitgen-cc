@@ -17,6 +17,16 @@ describe("inferScopeFromFiles", () => {
             "README.md"
         ])).toBeNull();
     });
+
+    it("prefers configured scope mappings when they cover the threshold", () => {
+        expect(inferScopeFromFiles([
+            "src/cli/index.ts",
+            "src/cli/install.ts",
+            "README.md"
+        ], {
+            "src/cli": "cli"
+        })).toBe("cli");
+    });
 });
 
 describe("inferTicketFromBranch", () => {

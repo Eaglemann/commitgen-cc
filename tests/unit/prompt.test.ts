@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveCommitPolicy } from "../../src/policy.js";
 import { buildMessages } from "../../src/prompt.js";
 
 describe("buildMessages", () => {
@@ -18,7 +19,11 @@ describe("buildMessages", () => {
             forcedType: "fix",
             forcedScope: "api",
             knownScopes: ["api", "cli"],
-            candidateCount: 3
+            candidateCount: 3,
+            policy: resolveCommitPolicy({
+                requiredScopes: ["api", "cli"],
+                bodyRequiredTypes: ["feat"]
+            })
         });
 
         expect(messages).toHaveLength(2);
@@ -27,6 +32,8 @@ describe("buildMessages", () => {
         expect(messages[1].content).toContain("Associated ticket: ABC-123");
         expect(messages[1].content).toContain("Branch: feature/ABC-123-parser");
         expect(messages[1].content).toContain("Preferred scopes: api, cli");
+        expect(messages[1].content).toContain("Scope is required and must be one of: api, cli.");
+        expect(messages[1].content).toContain("Add a short body when the type is: feat.");
         expect(messages[1].content).toContain("Recent accepted commit examples");
         expect(messages[1].content).toContain('Return exactly 3 messages.');
         expect(messages[1].content).toContain("Changed files (showing 10 of 12):");
@@ -43,10 +50,11 @@ describe("buildMessages", () => {
             ticket: null,
             recentExamples: [],
             forcedType: null,
-            forcedScope: null
+            forcedScope: null,
+            policy: resolveCommitPolicy({})
         });
 
-        expect(messages[1].content).toContain("Choose the best type from allowed list.");
+        expect(messages[1].content).toContain("Choose the best type from: feat, fix, chore, refactor, docs, test, perf, build, ci.");
         expect(messages[1].content).toContain("Use a scope only if it helps; otherwise omit.");
         expect(messages[1].content).toContain("No explicit ticket was provided.");
         expect(messages[1].content).toContain("Changed files:");
@@ -62,6 +70,7 @@ describe("buildMessages", () => {
             recentExamples: [],
             forcedType: null,
             forcedScope: null,
+            policy: resolveCommitPolicy({}),
             revisionRequest: {
                 currentMessage: "feat(src): add baseline",
                 feedback: "make it shorter"

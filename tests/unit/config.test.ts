@@ -23,7 +23,16 @@ describe("loadRepoConfig", () => {
             ticketPattern: "([A-Z]+-\\d+)",
             historyEnabled: false,
             historySampleSize: 4,
-            interactiveCandidates: 5
+            interactiveCandidates: 5,
+            hookMode: "enforce",
+            requireTicket: true,
+            allowedTypes: ["feat", "fix"],
+            requiredScopes: ["cli", "workflow"],
+            scopeMap: {
+                "src/cli": "cli"
+            },
+            subjectMaxLength: 60,
+            bodyRequiredTypes: ["feat"]
         }));
 
         await expect(loadRepoConfig(repoDir, null)).resolves.toEqual({
@@ -35,7 +44,16 @@ describe("loadRepoConfig", () => {
             ticketPattern: "([A-Z]+-\\d+)",
             historyEnabled: false,
             historySampleSize: 4,
-            interactiveCandidates: 5
+            interactiveCandidates: 5,
+            hookMode: "enforce",
+            requireTicket: true,
+            allowedTypes: ["feat", "fix"],
+            requiredScopes: ["cli", "workflow"],
+            scopeMap: {
+                "src/cli": "cli"
+            },
+            subjectMaxLength: 60,
+            bodyRequiredTypes: ["feat"]
         });
     });
 
@@ -70,5 +88,17 @@ describe("loadRepoConfig", () => {
         await expect(loadRepoConfig(repoDir, null))
             .rejects
             .toThrow("ticketPattern");
+    });
+
+    it("throws for invalid allowedTypes values", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "commitgen-config-"));
+        const configPath = join(repoDir, ".commitgen.json");
+        await writeFile(configPath, JSON.stringify({
+            allowedTypes: ["feat", "shipit"]
+        }));
+
+        await expect(loadRepoConfig(repoDir, null))
+            .rejects
+            .toThrow("allowedTypes");
     });
 });
