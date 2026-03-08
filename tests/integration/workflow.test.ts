@@ -4,8 +4,12 @@ import type { WorkflowOptions } from "../../src/workflow.js";
 
 const gitMock = {
     isGitRepo: vi.fn(),
+    getRepoRoot: vi.fn(),
+    getGitDir: vi.fn(),
+    getCurrentBranch: vi.fn(),
     hasStagedChanges: vi.fn(),
     getStagedDiff: vi.fn(),
+    getStagedFiles: vi.fn(),
     gitCommit: vi.fn()
 };
 
@@ -51,6 +55,10 @@ function baseOptions(overrides: Partial<WorkflowOptions> = {}): WorkflowOptions 
         timeoutMs: 60000,
         retries: 2,
         output: "text",
+        configPath: null,
+        candidates: null,
+        ticket: null,
+        history: false,
         ...overrides
     };
 }
@@ -59,12 +67,16 @@ describe("runWorkflow", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         gitMock.isGitRepo.mockResolvedValue(true);
+        gitMock.getRepoRoot.mockResolvedValue("/repo");
+        gitMock.getGitDir.mockResolvedValue("/repo/.git");
+        gitMock.getCurrentBranch.mockResolvedValue("feature/ABC-123-add-baseline");
         gitMock.hasStagedChanges.mockResolvedValue(true);
         gitMock.getStagedDiff.mockResolvedValue("diff --git a/src/a.ts b/src/a.ts\n+const x = 1;");
+        gitMock.getStagedFiles.mockResolvedValue(["src/a.ts"]);
         gitMock.gitCommit.mockResolvedValue(undefined);
         ollamaMock.ensureLocalModel.mockResolvedValue(undefined);
         ollamaMock.ollamaChat.mockResolvedValue("{\"message\":\"feat: add baseline\"}");
-        promptsMock.mockResolvedValue({ action: "cancel" });
+        promptsMock.mockResolvedValue({ selection: "cancel" });
     });
 
     it("returns git context error when repository is missing", async () => {
@@ -129,6 +141,8 @@ describe("runWorkflow", () => {
 
     it("marks repaired source when deterministic repair changed the output", async () => {
         gitMock.getStagedDiff.mockResolvedValue("diff --git a/README.md b/README.md\n+updated docs");
+        gitMock.getStagedFiles.mockResolvedValue(["README.md"]);
+        gitMock.getCurrentBranch.mockResolvedValue(null);
         ollamaMock.ollamaChat.mockResolvedValue("{\"message\":\"update readme content.\"}");
 
         const result = await runWorkflow(baseOptions({ dryRun: true }));
@@ -140,7 +154,9 @@ describe("runWorkflow", () => {
     });
 
     it("commits in interactive mode when action is accept", async () => {
-        promptsMock.mockResolvedValueOnce({ action: "accept" });
+        promptsMock
+            .mockResolvedValueOnce({ selection: "candidate:0" })
+            .mockResolvedValueOnce({ action: "accept" });
 
         const result = await runWorkflow(baseOptions({ ci: false }));
         expect(result.ok).toBe(true);
@@ -152,7 +168,9 @@ describe("runWorkflow", () => {
     });
 
     it("returns dry-run result in interactive mode", async () => {
-        promptsMock.mockResolvedValueOnce({ action: "dry" });
+        promptsMock
+            .mockResolvedValueOnce({ selection: "candidate:0" })
+            .mockResolvedValueOnce({ action: "dry" });
 
         const result = await runWorkflow(baseOptions({ ci: false }));
         expect(result.ok).toBe(true);
@@ -164,6 +182,7 @@ describe("runWorkflow", () => {
 
     it("supports interactive edit flow and commits edited message", async () => {
         promptsMock
+            .mockResolvedValueOnce({ selection: "candidate:0" })
             .mockResolvedValueOnce({ action: "edit" })
             .mockResolvedValueOnce({ message: "fix(core): adjust parser flow" });
 
@@ -174,6 +193,7 @@ describe("runWorkflow", () => {
 
     it("treats empty edit input as cancellation", async () => {
         promptsMock
+            .mockResolvedValueOnce({ selection: "candidate:0" })
             .mockResolvedValueOnce({ action: "edit" })
             .mockResolvedValueOnce({ message: undefined });
 
@@ -185,13 +205,31 @@ describe("runWorkflow", () => {
     it("loops when interactive accept is invalid and then allows cancel", async () => {
         ollamaMock.ollamaChat.mockResolvedValue("{\"message\":\"invalid message\"}");
         promptsMock
+            .mockResolvedValueOnce({ selection: "candidate:0" })
             .mockResolvedValueOnce({ action: "accept" })
-            .mockResolvedValueOnce({ action: "cancel" });
+            .mockResolvedValueOnce({ selection: "cancel" });
 
         const result = await runWorkflow(baseOptions({ ci: false }));
         expect(result.ok).toBe(true);
         if (result.ok) expect(result.cancelled).toBe(true);
         expect(gitMock.gitCommit).not.toHaveBeenCalled();
+    });
+
+    it("includes inferred ticket and alternatives in dry-run results", async () => {
+        ollamaMock.ollamaChat
+            .mockResolvedValueOnce("{\"message\":\"feat(src): add baseline\"}")
+            .mockResolvedValueOnce("{\"message\":\"feat(src): add ranking support\"}");
+
+        const result = await runWorkflow(baseOptions({
+            dryRun: true,
+            candidates: 2
+        }));
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.ticket).toBe("ABC-123");
+            expect(result.alternatives).toEqual(["feat(src): add ranking support\n\nRefs ABC-123"]);
+        }
     });
 
     it("maps unexpected thrown values to internal errors", async () => {
