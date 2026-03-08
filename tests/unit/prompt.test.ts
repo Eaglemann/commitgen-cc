@@ -5,14 +5,20 @@ describe("buildMessages", () => {
     it("includes forced type and scope constraints when provided", () => {
         const messages = buildMessages({
             diff: "diff --git a/src/a.ts b/src/a.ts",
-            files: ["src/a.ts"],
+            files: Array.from({ length: 12 }, (_, index) => `src/file-${index + 1}.ts`),
             branch: "feature/ABC-123-parser",
             suggestedScope: "src",
             ticket: "ABC-123",
-            recentExamples: ["feat(src): add parser"],
+            recentExamples: [
+                "feat(src): add parser",
+                "fix(src): tighten checks",
+                "docs: update usage",
+                "refactor(src): simplify flow"
+            ],
             forcedType: "fix",
             forcedScope: "api",
-            knownScopes: ["api", "cli"]
+            knownScopes: ["api", "cli"],
+            candidateCount: 3
         });
 
         expect(messages).toHaveLength(2);
@@ -22,6 +28,10 @@ describe("buildMessages", () => {
         expect(messages[1].content).toContain("Branch: feature/ABC-123-parser");
         expect(messages[1].content).toContain("Preferred scopes: api, cli");
         expect(messages[1].content).toContain("Recent accepted commit examples");
+        expect(messages[1].content).toContain('Return exactly 3 messages.');
+        expect(messages[1].content).toContain("Changed files (showing 10 of 12):");
+        expect(messages[1].content).not.toContain("src/file-11.ts");
+        expect(messages[1].content).not.toContain("refactor(src): simplify flow");
     });
 
     it("includes default constraints when type and scope are not provided", () => {
