@@ -27,9 +27,15 @@ const ollamaMock = {
     ensureLocalModel: vi.fn(),
     ollamaChat: vi.fn()
 };
+const historyMock = {
+    resolveHistoryPath: vi.fn(),
+    readHistory: vi.fn(),
+    appendHistory: vi.fn()
+};
 const promptsMock = vi.fn();
 
 vi.mock("../../src/git.js", () => gitMock);
+vi.mock("../../src/history.js", () => historyMock);
 vi.mock("../../src/ollama.js", () => ({
     ensureLocalModel: ollamaMock.ensureLocalModel,
     ollamaChat: ollamaMock.ollamaChat,
@@ -76,6 +82,9 @@ describe("runWorkflow", () => {
         gitMock.gitCommit.mockResolvedValue(undefined);
         ollamaMock.ensureLocalModel.mockResolvedValue(undefined);
         ollamaMock.ollamaChat.mockResolvedValue("{\"message\":\"feat: add baseline\"}");
+        historyMock.resolveHistoryPath.mockReturnValue("/repo/.git/commitgen/history.jsonl");
+        historyMock.readHistory.mockResolvedValue([]);
+        historyMock.appendHistory.mockResolvedValue(undefined);
         promptsMock.mockResolvedValue({ selection: "cancel" });
     });
 
@@ -180,6 +189,19 @@ describe("runWorkflow", () => {
         }
     });
 
+    it("does not record history for interactive dry-run", async () => {
+        promptsMock
+            .mockResolvedValueOnce({ selection: "candidate:0" })
+            .mockResolvedValueOnce({ action: "dry" });
+
+        await runWorkflow(baseOptions({
+            ci: false,
+            history: true
+        }));
+
+        expect(historyMock.appendHistory).not.toHaveBeenCalled();
+    });
+
     it("supports interactive edit flow and commits edited message", async () => {
         promptsMock
             .mockResolvedValueOnce({ selection: "candidate:0" })
@@ -189,6 +211,25 @@ describe("runWorkflow", () => {
         const result = await runWorkflow(baseOptions({ ci: false }));
         expect(result.ok).toBe(true);
         expect(gitMock.gitCommit).toHaveBeenCalledWith("fix(core): adjust parser flow", { noVerify: false });
+    });
+
+    it("returns and persists the actual final scope when an edited message omits scope", async () => {
+        promptsMock
+            .mockResolvedValueOnce({ selection: "candidate:0" })
+            .mockResolvedValueOnce({ action: "edit" })
+            .mockResolvedValueOnce({ message: "fix: adjust parser flow" });
+
+        const result = await runWorkflow(baseOptions({
+            ci: false,
+            history: true
+        }));
+
+        expect(result.ok).toBe(true);
+        if (result.ok) expect(result.scope).toBeNull();
+        expect(historyMock.appendHistory).toHaveBeenCalledWith(
+            "/repo/.git/commitgen/history.jsonl",
+            expect.objectContaining({ scope: null })
+        );
     });
 
     it("treats empty edit input as cancellation", async () => {
@@ -215,10 +256,26 @@ describe("runWorkflow", () => {
         expect(gitMock.gitCommit).not.toHaveBeenCalled();
     });
 
+    it("shows the selected message details instead of pre-printing all candidates", async () => {
+        const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+        try {
+            promptsMock
+                .mockResolvedValueOnce({ selection: "candidate:0" })
+                .mockResolvedValueOnce({ action: "accept" });
+
+            await runWorkflow(baseOptions({ ci: false }));
+
+            const joined = logSpy.mock.calls.flat().join("\n");
+            expect(joined).toContain("Selected commit message");
+            expect(joined).not.toContain("Suggested commit candidates");
+        } finally {
+            logSpy.mockRestore();
+        }
+    });
+
     it("includes inferred ticket and alternatives in dry-run results", async () => {
         ollamaMock.ollamaChat
-            .mockResolvedValueOnce("{\"message\":\"feat(src): add baseline\"}")
-            .mockResolvedValueOnce("{\"message\":\"feat(src): add ranking support\"}");
+            .mockResolvedValueOnce("{\"messages\":[\"feat(src): add baseline\",\"feat(src): add ranking support\"]}");
 
         const result = await runWorkflow(baseOptions({
             dryRun: true,
@@ -228,6 +285,40 @@ describe("runWorkflow", () => {
         expect(result.ok).toBe(true);
         if (result.ok) {
             expect(result.ticket).toBe("ABC-123");
+            expect(result.alternatives).toEqual(["feat(src): add ranking support\n\nRefs ABC-123"]);
+        }
+    });
+
+    it("batches candidate generation when the model returns a valid message array", async () => {
+        ollamaMock.ollamaChat.mockResolvedValueOnce("{\"messages\":[\"feat(src): add baseline\",\"feat(src): add ranking support\"]}");
+
+        const result = await runWorkflow(baseOptions({
+            dryRun: true,
+            candidates: 2
+        }));
+
+        expect(result.ok).toBe(true);
+        expect(ollamaMock.ollamaChat).toHaveBeenCalledTimes(1);
+        if (result.ok) {
+            expect(result.message).toBe("feat(src): add baseline\n\nRefs ABC-123");
+            expect(result.alternatives).toEqual(["feat(src): add ranking support\n\nRefs ABC-123"]);
+        }
+    });
+
+    it("falls back to single-message generation when batched output is malformed", async () => {
+        ollamaMock.ollamaChat
+            .mockResolvedValueOnce("not json")
+            .mockResolvedValueOnce("{\"message\":\"feat(src): add baseline\"}")
+            .mockResolvedValueOnce("{\"message\":\"feat(src): add ranking support\"}");
+
+        const result = await runWorkflow(baseOptions({
+            dryRun: true,
+            candidates: 2
+        }));
+
+        expect(result.ok).toBe(true);
+        expect(ollamaMock.ollamaChat).toHaveBeenCalledTimes(3);
+        if (result.ok) {
             expect(result.alternatives).toEqual(["feat(src): add ranking support\n\nRefs ABC-123"]);
         }
     });
