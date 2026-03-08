@@ -1,6 +1,8 @@
 import { access, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { join, resolve } from "node:path";
+import { isAllowedType, type AllowedType } from "./validation.js";
+import type { HookMode } from "./policy.js";
 
 export const DEFAULT_CONFIG_FILE = ".commitgen.json";
 export const DEFAULT_MODEL = "gpt-oss:120b-cloud";
@@ -23,6 +25,13 @@ export type RepoConfig = {
     historyEnabled?: boolean;
     historySampleSize?: number;
     interactiveCandidates?: number;
+    hookMode?: HookMode;
+    requireTicket?: boolean;
+    allowedTypes?: AllowedType[];
+    requiredScopes?: string[];
+    scopeMap?: Record<string, string>;
+    subjectMaxLength?: number;
+    bodyRequiredTypes?: AllowedType[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,6 +66,18 @@ function expectOptionalInteger(
     return value as number;
 }
 
+function expectOptionalPositiveInteger(
+    value: unknown,
+    key: keyof RepoConfig
+): number | undefined {
+    const parsed = expectOptionalInteger(value, key);
+    if (parsed === undefined) return undefined;
+    if (parsed <= 0) {
+        throw new Error(`Config field "${key}" must be greater than zero.`);
+    }
+    return parsed;
+}
+
 function expectOptionalBoolean(
     value: unknown,
     key: keyof RepoConfig
@@ -85,6 +106,55 @@ function expectOptionalStringArray(
     });
 }
 
+function expectOptionalAllowedTypeArray(
+    value: unknown,
+    key: keyof RepoConfig
+): AllowedType[] | undefined {
+    const values = expectOptionalStringArray(value, key);
+    if (!values) return undefined;
+
+    return values.map((entry) => {
+        const normalized = entry.toLowerCase();
+        if (!isAllowedType(normalized)) {
+            throw new Error(`Config field "${key}" contains invalid commit type "${entry}".`);
+        }
+        return normalized;
+    });
+}
+
+function expectOptionalHookMode(
+    value: unknown
+): HookMode | undefined {
+    if (value === undefined) return undefined;
+    if (value !== "suggest" && value !== "enforce") {
+        throw new Error('Config field "hookMode" must be either "suggest" or "enforce".');
+    }
+    return value;
+}
+
+function expectOptionalScopeMap(
+    value: unknown
+): Record<string, string> | undefined {
+    if (value === undefined) return undefined;
+    if (!isRecord(value)) {
+        throw new Error('Config field "scopeMap" must be an object of path-to-scope mappings.');
+    }
+
+    const scopeMap: Record<string, string> = {};
+    for (const [rawPath, rawScope] of Object.entries(value)) {
+        const path = rawPath.trim();
+        if (!path) {
+            throw new Error('Config field "scopeMap" must not contain empty paths.');
+        }
+        if (typeof rawScope !== "string" || rawScope.trim().length === 0) {
+            throw new Error(`Config field "scopeMap" must map "${rawPath}" to a non-empty string.`);
+        }
+        scopeMap[path] = rawScope.trim();
+    }
+
+    return scopeMap;
+}
+
 function parseRepoConfig(input: unknown): RepoConfig {
     if (!isRecord(input)) {
         throw new Error("Config file must contain a JSON object.");
@@ -99,7 +169,14 @@ function parseRepoConfig(input: unknown): RepoConfig {
         ticketPattern: expectOptionalString(input.ticketPattern, "ticketPattern"),
         historyEnabled: expectOptionalBoolean(input.historyEnabled, "historyEnabled"),
         historySampleSize: expectOptionalInteger(input.historySampleSize, "historySampleSize"),
-        interactiveCandidates: expectOptionalInteger(input.interactiveCandidates, "interactiveCandidates")
+        interactiveCandidates: expectOptionalInteger(input.interactiveCandidates, "interactiveCandidates"),
+        hookMode: expectOptionalHookMode(input.hookMode),
+        requireTicket: expectOptionalBoolean(input.requireTicket, "requireTicket"),
+        allowedTypes: expectOptionalAllowedTypeArray(input.allowedTypes, "allowedTypes"),
+        requiredScopes: expectOptionalStringArray(input.requiredScopes, "requiredScopes"),
+        scopeMap: expectOptionalScopeMap(input.scopeMap),
+        subjectMaxLength: expectOptionalPositiveInteger(input.subjectMaxLength, "subjectMaxLength"),
+        bodyRequiredTypes: expectOptionalAllowedTypeArray(input.bodyRequiredTypes, "bodyRequiredTypes")
     };
 
     if (config.ticketPattern) {
