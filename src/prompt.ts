@@ -1,11 +1,12 @@
 import type { ChatMessage } from "./ollama.js";
+import type { CommitPolicy } from "./policy.js";
 
 type AllowedType = "feat" | "fix" | "chore" | "refactor" | "docs" | "test" | "perf" | "build" | "ci";
 
 const DEFAULT_PROMPT_FILE_HINTS = 10;
 const DEFAULT_PROMPT_HISTORY_EXAMPLES = 3;
 
-function buildSystemMessage(candidateCount: number): string {
+function buildSystemMessage(candidateCount: number, policy: CommitPolicy): string {
     const responseRule = candidateCount > 1
         ? `- Output ONLY a valid JSON object with exactly one key: { "messages": ["...", "..."] }
 - Return exactly ${candidateCount} commit messages in the "messages" array.`
@@ -18,8 +19,8 @@ ${responseRule}
 - Do not include any keys other than "message" or "messages".
 - NO markdown and NO commentary.
 - Use Conventional Commits: type(scope optional): subject
-- Allowed types: feat, fix, chore, refactor, docs, test, perf, build, ci
-- Subject line: <= 72 chars, imperative mood, present tense, NO trailing period.
+- Allowed types: ${policy.allowedTypes.join(", ")}
+- Subject line: <= ${policy.subjectMaxLength} chars, imperative mood, present tense, NO trailing period.
 - If really useful, add a blank line and a short body explaining "what" and "why".
 - If a ticket is provided, prefer a footer line in the form "Refs TICKET-123" rather than adding it to the subject.
 - Never mention that you are an AI.
@@ -53,6 +54,7 @@ export function buildMessages(opts: {
     forcedScope: string | null;
     knownScopes?: string[];
     candidateCount?: number;
+    policy: CommitPolicy;
     revisionRequest?: {
         currentMessage: string;
         feedback: string;
@@ -60,13 +62,23 @@ export function buildMessages(opts: {
 }): ChatMessage[] {
     const candidateCount = Math.max(1, Math.floor(opts.candidateCount ?? 1));
     const constraints = [
-        opts.forcedType ? `Forced type: ${opts.forcedType}` : "Choose the best type from allowed list.",
+        opts.forcedType ? `Forced type: ${opts.forcedType}` : `Choose the best type from: ${opts.policy.allowedTypes.join(", ")}.`,
         opts.forcedScope
             ? `Forced scope: ${opts.forcedScope}`
             : opts.suggestedScope
                 ? `Suggested scope: ${opts.suggestedScope}`
                 : "Use a scope only if it helps; otherwise omit.",
-        opts.ticket ? `Associated ticket: ${opts.ticket}` : "No explicit ticket was provided."
+        opts.policy.requiredScopes.length > 0
+            ? `Scope is required and must be one of: ${opts.policy.requiredScopes.join(", ")}.`
+            : "Scope is optional unless it adds clarity.",
+        opts.ticket
+            ? `Associated ticket: ${opts.ticket}`
+            : opts.policy.requireTicket
+                ? "A ticket reference is required if one can be inferred. Do not invent a fake ticket."
+                : "No explicit ticket was provided.",
+        opts.policy.bodyRequiredTypes.length > 0
+            ? `Add a short body when the type is: ${opts.policy.bodyRequiredTypes.join(", ")}.`
+            : "Body is optional unless it adds useful context."
     ].join("\n");
 
     const repoHints = [
@@ -74,6 +86,9 @@ export function buildMessages(opts: {
         formatList("Changed files", opts.files, DEFAULT_PROMPT_FILE_HINTS),
         opts.knownScopes && opts.knownScopes.length > 0
             ? `Preferred scopes: ${opts.knownScopes.join(", ")}`
+            : null,
+        Object.keys(opts.policy.scopeMap).length > 0
+            ? `Scope map: ${Object.entries(opts.policy.scopeMap).map(([path, scope]) => `${path} -> ${scope}`).join(", ")}`
             : null,
         opts.recentExamples.length > 0
             ? formatList("Recent accepted commit examples", opts.recentExamples, DEFAULT_PROMPT_HISTORY_EXAMPLES)
@@ -116,7 +131,7 @@ ${opts.diff}
 ${revisionContext}${responseShape}`;
 
     return [
-        { role: "system", content: buildSystemMessage(candidateCount) },
+        { role: "system", content: buildSystemMessage(candidateCount, opts.policy) },
         { role: "user", content: user }
     ];
 }

@@ -4,9 +4,14 @@ export type AllowedType = "feat" | "fix" | "chore" | "refactor" | "docs" | "test
 
 export const ALLOWED_TYPES: AllowedType[] = ["feat", "fix", "chore", "refactor", "docs", "test", "perf", "build", "ci"];
 export const ALLOWED_TYPES_SET = new Set<AllowedType>(ALLOWED_TYPES);
+export const DEFAULT_SUBJECT_MAX_LENGTH = 72;
 
 export type ValidationResult = { ok: true } | { ok: false, reason: string };
 export type ParsedSubject = { type: string, scope: string | null, description: string };
+type ValidationOptions = {
+    subjectMaxLength?: number;
+    allowedTypes?: readonly string[];
+};
 
 const SUBJECT_REGEX = /^([a-z]+)(\([^)]+\))?!?:\s(.+)$/;
 
@@ -100,22 +105,24 @@ export function extractMessageListFromModelOutput(raw: string): string[] | null 
     return messages && messages.length > 0 ? messages : null;
 }
 
-export function validateMessage(message: string): ValidationResult {
+export function validateMessage(message: string, opts: ValidationOptions = {}): ValidationResult {
     const normalized = normalizeMessage(message);
     if (!normalized) return { ok: false, reason: "Message is empty" };
     if (normalized.includes("```")) return { ok: false, reason: "No markdown/code fences" };
 
     const subject = normalized.split("\n")[0].trim();
+    const subjectMaxLength = opts.subjectMaxLength ?? DEFAULT_SUBJECT_MAX_LENGTH;
+    const allowedTypes = opts.allowedTypes ?? ALLOWED_TYPES;
     if (!subject) return { ok: false, reason: "Subject line is empty" };
-    if (subject.length > 72) return { ok: false, reason: "Subject line > 72 chars" };
+    if (subject.length > subjectMaxLength) return { ok: false, reason: `Subject line > ${subjectMaxLength} chars` };
     if (subject.endsWith(".")) return { ok: false, reason: "Subject should not end with a period" };
 
     const conventional = subject.match(SUBJECT_REGEX);
     if (!conventional) return { ok: false, reason: "Not Conventional Commits format" };
 
     const type = conventional[1];
-    if (!isAllowedType(type)) {
-        return { ok: false, reason: `Type must be one of: ${ALLOWED_TYPES.join(", ")}` };
+    if (!allowedTypes.includes(type)) {
+        return { ok: false, reason: `Type must be one of: ${allowedTypes.join(", ")}` };
     }
 
     return { ok: true };

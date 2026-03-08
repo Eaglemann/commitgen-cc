@@ -12,6 +12,7 @@ type ScoreContext = {
     expectedType: AllowedType | null;
     expectedScope: string | null;
     ticket: string | null;
+    subjectMaxLength: number;
 };
 
 const GENERIC_DESCRIPTION_PATTERNS = [
@@ -61,7 +62,7 @@ export function scoreCandidate(
     const subject = getSubject(message);
 
     let score = validation.ok ? 1_000_000 : 0;
-    if (subject.length > 0 && subject.length <= 72) score += 100_000;
+    if (subject.length > 0 && subject.length <= context.subjectMaxLength) score += 100_000;
     if (context.expectedType && parsed.type === context.expectedType) score += 10_000;
 
     const normalizedExpectedScope = normalizeScopeName(context.expectedScope);
