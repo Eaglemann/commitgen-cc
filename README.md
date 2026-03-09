@@ -69,6 +69,7 @@ These are the primary options for `commitgen-cc` itself:
 | `--no-history` | Disable local history examples and history writes |
 | `--dry-run` | Print the message without committing |
 | `--ci` | Use non-interactive mode |
+| `--explain` | Show why the selected message won |
 | `--allow-invalid` | Allow an invalid message instead of blocking it |
 | `--timeout-ms <n>` | Set the Ollama request timeout |
 | `--retries <n>` | Retry transient Ollama failures |
@@ -92,10 +93,22 @@ Print the message without committing:
 commitgen-cc --dry-run
 ```
 
+Print the message with selection diagnostics:
+
+```bash
+commitgen-cc --dry-run --explain
+```
+
 Generate machine-readable output:
 
 ```bash
 commitgen-cc --ci --dry-run --output json
+```
+
+Add diagnostics to JSON output only when needed:
+
+```bash
+commitgen-cc --ci --dry-run --output json --explain
 ```
 
 Ask for multiple ranked candidates:
@@ -246,6 +259,7 @@ JSON success output can include:
 - `scope`
 - `ticket`
 - `alternatives`
+- `diagnostics` when `--explain` is set
 
 ### Enforce the same policy in GitHub Actions
 
