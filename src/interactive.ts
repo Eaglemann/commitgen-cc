@@ -1,4 +1,6 @@
 import prompts from "prompts";
+import { buildCandidateDiagnostics, buildContextDiagnostics } from "./diagnostics.js";
+import { formatExplainBlock, formatMessageCard } from "./explain-output.js";
 import { ExitCode } from "./exit-codes.js";
 import { getAlternatives, buildSuccessResult, commitMessage, maybeRecordHistory } from "./finalize.js";
 import { lintCommitMessage } from "./policy.js";
@@ -11,9 +13,11 @@ import type { RepoContext, ResolvedWorkflowOptions, SuccessResult } from "./work
 function toCandidateChoice(candidate: RankedCandidate, index: number): { title: string; value: string; description?: string } {
     const [subject, ...bodyLines] = candidate.message.split("\n");
     const details = [
+        candidate.validation.ok ? "valid" : `invalid: ${candidate.validation.reason}`,
         candidate.source === "repaired" ? "repaired" : null,
-        !candidate.validation.ok ? candidate.validation.reason : null,
-        bodyLines.find((line) => line.trim().length > 0) ?? null
+        bodyLines.find((line) => line.trim().length > 0)
+            ? `body: ${bodyLines.find((line) => line.trim().length > 0)}`
+            : null
     ]
         .filter((entry): entry is string => Boolean(entry))
         .join(" | ");
@@ -52,11 +56,11 @@ async function chooseCandidateAction(): Promise<"accept" | "edit" | "dry" | "bac
         name: "action",
         message: "What next?",
         choices: [
-            { title: "Accept and commit", value: "accept" },
-            { title: "Edit selected", value: "edit" },
-            { title: "Dry-run selected", value: "dry" },
-            { title: "Choose another candidate", value: "back" },
-            { title: "Regenerate all", value: "regen" },
+            { title: "Commit selected message", value: "accept" },
+            { title: "Edit selected message", value: "edit" },
+            { title: "Print selected message only", value: "dry" },
+            { title: "Pick another candidate", value: "back" },
+            { title: "Regenerate candidates", value: "regen" },
             { title: "Cancel", value: "cancel" }
         ],
         initial: 0
@@ -71,11 +75,11 @@ async function chooseSingleMessageAction(): Promise<"accept" | "revise" | "edit"
         name: "action",
         message: "What next?",
         choices: [
-            { title: "Accept and commit", value: "accept" },
-            { title: "Ask for change", value: "revise" },
-            { title: "Edit message", value: "edit" },
-            { title: "Dry-run message", value: "dry" },
-            { title: "Regenerate", value: "regen" },
+            { title: "Commit this message", value: "accept" },
+            { title: "Ask for a revision", value: "revise" },
+            { title: "Edit manually", value: "edit" },
+            { title: "Print message only", value: "dry" },
+            { title: "Generate another", value: "regen" },
             { title: "Cancel", value: "cancel" }
         ],
         initial: 0
@@ -88,7 +92,7 @@ async function promptRevisionFeedback(): Promise<string | null> {
     const response = await prompts({
         type: "text",
         name: "feedback",
-        message: "What should change?"
+        message: "What should change? (leave empty to keep the current message)"
     });
 
     const feedback = response.feedback as string | undefined;
@@ -96,13 +100,32 @@ async function promptRevisionFeedback(): Promise<string | null> {
     return normalized && normalized.length > 0 ? normalized : null;
 }
 
-function printSelectedCandidate(candidate: RankedCandidate): void {
-    console.log("\n--- Selected commit message ---\n");
-    console.log(candidate.message);
-    if (!candidate.validation.ok) {
-        console.log(`\nValidation: ${candidate.validation.reason}`);
+function printSelectedCandidate(
+    candidate: RankedCandidate,
+    context: RepoContext,
+    options: ResolvedWorkflowOptions,
+    alternativesCount = 0
+): void {
+    const diagnostics = buildCandidateDiagnostics(candidate, context, options);
+
+    console.log("");
+    console.log(formatMessageCard(diagnostics));
+
+    if (!candidate.validation.ok && !options.explain) {
+        console.log("");
+        console.log(`Validation: ${candidate.validation.reason}`);
     }
-    console.log("\n-------------------------------\n");
+
+    if (options.explain) {
+        console.log("");
+        console.log(formatExplainBlock(
+            buildContextDiagnostics(context, options),
+            diagnostics,
+            alternativesCount
+        ));
+    }
+
+    console.log("");
 }
 
 function validateCandidateMessage(
@@ -126,6 +149,7 @@ function createCandidateFromMessage(
         ...base,
         message: normalized,
         source: source ?? (normalized === base.message ? base.source : "repaired"),
+        validationErrors: lintCommitMessage(normalized, options.policy, options.ticketPattern).errors,
         validation: validateCandidateMessage(normalized, options)
     };
 }
@@ -156,12 +180,13 @@ async function handleFinalAction(
         const editedResponse = await prompts({
             type: "text",
             name: "message",
-            message: "Edit commit message",
+            message: "Edit commit message (leave empty to cancel)",
             initial: candidate.message
         });
 
         const editedMessage = editedResponse.message as string | undefined;
         if (!editedMessage) {
+            console.log("No edited message entered. Cancelling.");
             return buildSuccessResult(
                 candidate.message,
                 candidate.source,
@@ -233,14 +258,17 @@ async function runSingleMessageInteractive(
         let current = initial;
 
         while (true) {
-            printSelectedCandidate(current);
+            printSelectedCandidate(current, context, options);
             const action = await chooseSingleMessageAction();
 
             if (action === "regen") break;
 
             if (action === "revise") {
                 const feedback = await promptRevisionFeedback();
-                if (!feedback) continue;
+                if (!feedback) {
+                    console.log("No revision request entered. Keeping the current message.");
+                    continue;
+                }
                 current = await reviseCandidate(context, options, current.message, feedback);
                 continue;
             }
@@ -280,7 +308,7 @@ async function runCandidateSelectionInteractive(
             }
             if (selection === "regen") break;
 
-            printSelectedCandidate(selection);
+            printSelectedCandidate(selection, context, options, candidates.length - 1);
 
             const action = await chooseCandidateAction();
             if (action === "back") continue;
