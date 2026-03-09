@@ -281,6 +281,8 @@ function isBuildFile(path: string): boolean {
         || path === "yarn.lock"
         || path === "pnpm-lock.yaml"
         || path === "package.json"
+        || path === "dockerfile"
+        || path === "docker-compose.yml"
         || path.endsWith("/dockerfile")
         || path.endsWith("/docker-compose.yml");
 }

@@ -1,5 +1,5 @@
 import { chmod, readFile, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { ExitCode } from "./exit-codes.js";
 import { getGitDir, getRepoRoot, isGitRepo } from "./git.js";
 import { lintMessageFile } from "./lint-message.js";
@@ -60,11 +60,12 @@ export async function installHooks(cliPath: string, nodePath: string, configPath
 
     const gitDir = await getGitDir();
     const installed: string[] = [];
+    const resolvedConfigPath = configPath ? resolve(process.cwd(), configPath) : null;
 
     for (const hookName of MANAGED_HOOKS) {
         const hookPath = join(gitDir, "hooks", hookName);
         await ensureManagedOrMissing(hookPath);
-        await writeFile(hookPath, buildHookScript(hookName, nodePath, cliPath, configPath), "utf8");
+        await writeFile(hookPath, buildHookScript(hookName, nodePath, cliPath, resolvedConfigPath), "utf8");
         await chmod(hookPath, 0o755);
         installed.push(hookPath);
     }
@@ -100,7 +101,11 @@ function shouldSkipPrepareHook(source: string | undefined): boolean {
     return ["message", "template", "merge", "squash", "commit"].includes(source);
 }
 
-export async function runPrepareCommitMsgHook(messageFile: string, source?: string): Promise<number> {
+export async function runPrepareCommitMsgHook(
+    messageFile: string,
+    configPath: string | null,
+    source?: string
+): Promise<number> {
     try {
         if (shouldSkipPrepareHook(source)) return ExitCode.Success;
 
@@ -108,6 +113,7 @@ export async function runPrepareCommitMsgHook(messageFile: string, source?: stri
         if (current.trim().length > 0) return ExitCode.Success;
 
         const result = await runWorkflow(buildDefaultWorkflowOptions({
+            configPath,
             ci: true,
             dryRun: true
         }));

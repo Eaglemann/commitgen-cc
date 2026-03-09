@@ -381,7 +381,7 @@ async function runInternalHookCommand(): Promise<number> {
             console.error("Missing prepare-commit-msg file path.");
             return ExitCode.UsageError;
         }
-        return await runPrepareCommitMsgHook(messageFile, source);
+        return await runPrepareCommitMsgHook(messageFile, configPath, source);
     }
 
     if (hookName === "commit-msg") {

@@ -13,7 +13,6 @@ export const DEFAULT_RETRIES = 2;
 export const DEFAULT_TICKET_PATTERN = "([A-Z][A-Z0-9]+-\\d+)";
 export const DEFAULT_HISTORY_ENABLED = true;
 export const DEFAULT_HISTORY_SAMPLE_SIZE = 5;
-export const DEFAULT_INTERACTIVE_CANDIDATES = 3;
 
 export type RepoConfig = {
     model?: string;
@@ -24,7 +23,6 @@ export type RepoConfig = {
     ticketPattern?: string;
     historyEnabled?: boolean;
     historySampleSize?: number;
-    interactiveCandidates?: number;
     hookMode?: HookMode;
     requireTicket?: boolean;
     allowedTypes?: AllowedType[];
@@ -169,7 +167,6 @@ function parseRepoConfig(input: unknown): RepoConfig {
         ticketPattern: expectOptionalString(input.ticketPattern, "ticketPattern"),
         historyEnabled: expectOptionalBoolean(input.historyEnabled, "historyEnabled"),
         historySampleSize: expectOptionalInteger(input.historySampleSize, "historySampleSize"),
-        interactiveCandidates: expectOptionalInteger(input.interactiveCandidates, "interactiveCandidates"),
         hookMode: expectOptionalHookMode(input.hookMode),
         requireTicket: expectOptionalBoolean(input.requireTicket, "requireTicket"),
         allowedTypes: expectOptionalAllowedTypeArray(input.allowedTypes, "allowedTypes"),
