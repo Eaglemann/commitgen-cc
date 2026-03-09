@@ -191,6 +191,31 @@ describe("cli e2e", () => {
         expect(payload.hint).toContain("Stage files first");
     });
 
+    it("prints doctor output in named sections", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
+        await initRepo(repoDir);
+        const bootstrapPath = await writeMockFetch(repoDir);
+
+        const { stdout, exitCode } = await execa(getNodeBin(), [
+            "--import",
+            bootstrapPath,
+            getCliPath(),
+            "doctor"
+        ], {
+            cwd: repoDir,
+            env: {
+                MOCK_OLLAMA_MODELS: JSON.stringify(["gpt-oss:120b-cloud:latest"])
+            }
+        });
+
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain("== Doctor ==");
+        expect(stdout).toContain("== Environment ==");
+        expect(stdout).toContain("== Repository ==");
+        expect(stdout).toContain("== Ollama ==");
+        expect(stdout).toContain("All checks passed.");
+    });
+
     it("prints explain output in single-candidate dry-run text mode", async () => {
         const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
         await initRepo(repoDir);
@@ -217,9 +242,9 @@ describe("cli e2e", () => {
 
         expect(exitCode).toBe(0);
         expect(stdout).toContain("docs: update readme");
-        expect(stdout).toContain("Why this message");
-        expect(stdout).toContain("selected ticket: ABC-123 (branch inference)");
-        expect(stdout).toContain("ranking:");
+        expect(stdout).toContain("== Why this message ==");
+        expect(stdout).toContain("Selected ticket : ABC-123 (branch inference)");
+        expect(stdout).toContain("Ranking");
     });
 
     it("prints explain output with alternatives in multi-candidate dry-run text mode", async () => {
@@ -249,8 +274,8 @@ describe("cli e2e", () => {
         });
 
         expect(exitCode).toBe(0);
-        expect(stdout).toContain("Why this message");
-        expect(stdout).toContain("alternatives: 1");
+        expect(stdout).toContain("== Why this message ==");
+        expect(stdout).toContain("Alternatives    : 1");
     });
 
     it("shows full validation errors in explain mode when generation is invalid", async () => {
@@ -287,6 +312,7 @@ describe("cli e2e", () => {
         expect(result.exitCode).toBe(4);
         expect(result.stderr).toContain("AI output failed validation: Not Conventional Commits format");
         expect(result.stderr).toContain("Not Conventional Commits format");
+        expect(result.stderr).toContain("== Why this message ==");
         expect(result.stderr).toContain("Scope is required and must be one of: cli.");
         expect(result.stderr).toContain("Message must reference a ticket.");
     });
