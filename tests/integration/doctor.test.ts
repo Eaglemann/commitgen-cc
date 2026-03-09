@@ -34,6 +34,7 @@ function baseOptions(overrides: Partial<WorkflowOptions> = {}): WorkflowOptions 
         noVerify: false,
         ci: false,
         allowInvalid: false,
+        explain: false,
         timeoutMs: 60000,
         retries: 2,
         output: "text",

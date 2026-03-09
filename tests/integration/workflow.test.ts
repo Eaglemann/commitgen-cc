@@ -58,6 +58,7 @@ function baseOptions(overrides: Partial<WorkflowOptions> = {}): WorkflowOptions 
         noVerify: false,
         ci: true,
         allowInvalid: false,
+        explain: false,
         timeoutMs: 60000,
         retries: 2,
         output: "text",
@@ -111,6 +112,40 @@ describe("runWorkflow", () => {
         expect(result.ok).toBe(false);
         if (!result.ok) expect(result.exitCode).toBe(ExitCode.InvalidAiOutput);
         expect(gitMock.gitCommit).not.toHaveBeenCalled();
+    });
+
+    it("includes diagnostics in dry-run results when explain is enabled", async () => {
+        ollamaMock.ollamaChat.mockResolvedValue("{\"messages\":[\"feat(src): add baseline\",\"feat(src): add ranking support\"]}");
+
+        const result = await runWorkflow(baseOptions({
+            dryRun: true,
+            explain: true,
+            candidates: 2
+        }));
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+            expect(result.diagnostics?.context.ticket).toEqual({
+                value: "ABC-123",
+                source: "branch"
+            });
+            expect(result.diagnostics?.selected?.ranking.total).toBeGreaterThan(0);
+            expect(result.diagnostics?.candidates).toHaveLength(2);
+        }
+    });
+
+    it("includes full validation diagnostics for invalid explain-mode results", async () => {
+        ollamaMock.ollamaChat.mockResolvedValue("{\"message\":\"bad message\"}");
+
+        const result = await runWorkflow(baseOptions({
+            dryRun: true,
+            explain: true
+        }));
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.diagnostics?.selected?.validation.errors).toContain("Not Conventional Commits format");
+        }
     });
 
     it("allows invalid output only when --allow-invalid is enabled", async () => {
@@ -342,8 +377,27 @@ describe("runWorkflow", () => {
             await runWorkflow(baseOptions({ ci: false }));
 
             const joined = logSpy.mock.calls.flat().join("\n");
-            expect(joined).toContain("Selected commit message");
+            expect(joined).toContain("Commit message");
             expect(joined).not.toContain("Suggested commit candidates");
+        } finally {
+            logSpy.mockRestore();
+        }
+    });
+
+    it("shows explain details in the interactive message card when explain mode is enabled", async () => {
+        const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+        try {
+            promptsMock.mockResolvedValueOnce({ action: "cancel" });
+
+            await runWorkflow(baseOptions({
+                ci: false,
+                explain: true
+            }));
+
+            const joined = logSpy.mock.calls.flat().join("\n");
+            expect(joined).toContain("Commit message");
+            expect(joined).toContain("status: valid | repaired | scope:src | ticket:ABC-123");
+            expect(joined).toContain("Why this message");
         } finally {
             logSpy.mockRestore();
         }
