@@ -154,4 +154,23 @@ describe("inferTypeFromDiff", () => {
         const diff = "diff --git a/package-lock.json b/package-lock.json";
         expect(inferTypeFromDiff(diff)).toBe("build");
     });
+
+    it("detects root-level Dockerfile changes", () => {
+        const diff = "diff --git a/Dockerfile b/Dockerfile";
+        expect(inferTypeFromDiff(diff)).toBe("build");
+    });
+
+    it("detects root-level docker-compose changes", () => {
+        const diff = "diff --git a/docker-compose.yml b/docker-compose.yml";
+        expect(inferTypeFromDiff(diff)).toBe("build");
+    });
+
+    it("detects nested container build files", () => {
+        const diff = [
+            "diff --git a/infra/Dockerfile b/infra/Dockerfile",
+            "diff --git a/ops/docker-compose.yml b/ops/docker-compose.yml"
+        ].join("\n");
+
+        expect(inferTypeFromDiff(diff)).toBe("build");
+    });
 });

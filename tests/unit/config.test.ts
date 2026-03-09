@@ -23,7 +23,6 @@ describe("loadRepoConfig", () => {
             ticketPattern: "([A-Z]+-\\d+)",
             historyEnabled: false,
             historySampleSize: 4,
-            interactiveCandidates: 5,
             hookMode: "enforce",
             requireTicket: true,
             allowedTypes: ["feat", "fix"],
@@ -44,7 +43,6 @@ describe("loadRepoConfig", () => {
             ticketPattern: "([A-Z]+-\\d+)",
             historyEnabled: false,
             historySampleSize: 4,
-            interactiveCandidates: 5,
             hookMode: "enforce",
             requireTicket: true,
             allowedTypes: ["feat", "fix"],
@@ -55,6 +53,17 @@ describe("loadRepoConfig", () => {
             subjectMaxLength: 60,
             bodyRequiredTypes: ["feat"]
         });
+    });
+
+    it("ignores legacy interactiveCandidates config", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "commitgen-config-"));
+        const configPath = join(repoDir, ".commitgen.json");
+
+        await writeFile(configPath, JSON.stringify({
+            interactiveCandidates: 5
+        }));
+
+        await expect(loadRepoConfig(repoDir, null)).resolves.not.toHaveProperty("interactiveCandidates");
     });
 
     it("throws when an explicit config path is missing", async () => {

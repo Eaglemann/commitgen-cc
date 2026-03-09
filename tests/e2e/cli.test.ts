@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execa } from "execa";
@@ -145,13 +145,17 @@ describe("cli e2e", () => {
         await expect(stat(commitHookPath)).rejects.toThrow();
     });
 
-    it("generates a commit message through the prepare-commit-msg hook", async () => {
+    it("generates a commit message through the prepare-commit-msg hook using the installed config path", async () => {
         const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-hooks-"));
         await initRepo(repoDir);
         await writeFile(join(repoDir, "README.md"), "# Demo\n");
+        await writeFile(join(repoDir, "custom-config.json"), JSON.stringify({
+            model: "custom-model",
+            host: "http://custom-host"
+        }, null, 2));
         const bootstrapPath = await writeMockFetch(repoDir);
         await execa("git", ["add", "README.md"], { cwd: repoDir });
-        await execa(getNodeBin(), [getCliPath(), "install-hook"], { cwd: repoDir });
+        await execa(getNodeBin(), [getCliPath(), "install-hook", "--config", "custom-config.json"], { cwd: repoDir });
 
         const messageFile = join(repoDir, "COMMIT_EDITMSG");
         await writeFile(messageFile, "");
@@ -160,7 +164,45 @@ describe("cli e2e", () => {
             cwd: repoDir,
             env: {
                 NODE_OPTIONS: `--import ${bootstrapPath}`,
-                MOCK_OLLAMA_MODELS: JSON.stringify(["gpt-oss:120b-cloud:latest"]),
+                MOCK_OLLAMA_MODELS: JSON.stringify(["custom-model:latest"]),
+                MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
+                    "{\"message\":\"docs: update readme\"}"
+                ])
+            }
+        });
+
+        expect(hookResult.exitCode).toBe(0);
+        await expect(readFile(messageFile, "utf8")).resolves.toContain("docs: update readme");
+    });
+
+    it("stores an absolute installed config path so hooks still work when installed from a subdirectory", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-hooks-"));
+        const nestedDir = join(repoDir, "nested");
+        await initRepo(repoDir);
+        await mkdir(nestedDir, { recursive: true });
+        await writeFile(join(repoDir, "README.md"), "# Demo\n");
+        const configPath = join(repoDir, "custom-config.json");
+        await writeFile(configPath, JSON.stringify({
+            model: "custom-model",
+            host: "http://custom-host"
+        }, null, 2));
+        const bootstrapPath = await writeMockFetch(repoDir);
+        await execa("git", ["add", "README.md"], { cwd: repoDir });
+        await execa(getNodeBin(), [getCliPath(), "install-hook", "--config", "../custom-config.json"], {
+            cwd: nestedDir
+        });
+
+        const prepareHookPath = join(repoDir, ".git", "hooks", "prepare-commit-msg");
+        await expect(readFile(prepareHookPath, "utf8")).resolves.toContain(configPath);
+
+        const messageFile = join(repoDir, "COMMIT_EDITMSG");
+        await writeFile(messageFile, "");
+
+        const hookResult = await execa(prepareHookPath, [messageFile], {
+            cwd: repoDir,
+            env: {
+                NODE_OPTIONS: `--import ${bootstrapPath}`,
+                MOCK_OLLAMA_MODELS: JSON.stringify(["custom-model:latest"]),
                 MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
                     "{\"message\":\"docs: update readme\"}"
                 ])
