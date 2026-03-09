@@ -101,6 +101,73 @@ describe("cli e2e", () => {
         ]);
     });
 
+    it("emits JSON diagnostics when explain mode is enabled", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
+        await initRepo(repoDir);
+        await writeFile(join(repoDir, "README.md"), "# Demo\n");
+        await writeFile(join(repoDir, ".commitgen.json"), JSON.stringify({
+            model: "repo-model",
+            host: "http://repo-config-host"
+        }, null, 2));
+        const bootstrapPath = await writeMockFetch(repoDir);
+        await execa("git", ["checkout", "-b", "feature/ABC-123-readme"], { cwd: repoDir });
+        await execa("git", ["add", "README.md"], { cwd: repoDir });
+
+        const { stdout, exitCode } = await execa(getNodeBin(), [
+            "--import",
+            bootstrapPath,
+            getCliPath(),
+            "--ci",
+            "--dry-run",
+            "--output",
+            "json",
+            "--candidates",
+            "2",
+            "--explain"
+        ], {
+            cwd: repoDir,
+            env: {
+                MOCK_OLLAMA_MODELS: JSON.stringify(["repo-model:latest"]),
+                MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
+                    "{\"messages\":[\"docs: update readme\",\"docs: refine readme guidance\"]}"
+                ])
+            }
+        });
+
+        expect(exitCode).toBe(0);
+        const payload = JSON.parse(stdout) as {
+            status: string;
+            diagnostics?: {
+                context: {
+                    ticket: {
+                        value: string | null;
+                        source: string;
+                    };
+                };
+                selected: {
+                    source: string;
+                    validation: {
+                        ok: boolean;
+                    };
+                    ranking: {
+                        total: number;
+                    };
+                };
+                candidates: Array<unknown>;
+            };
+        };
+
+        expect(payload.status).toBe("ok");
+        expect(payload.diagnostics?.context.ticket).toEqual({
+            value: "ABC-123",
+            source: "branch"
+        });
+        expect(payload.diagnostics?.selected.source).toBe("repaired");
+        expect(payload.diagnostics?.selected.validation.ok).toBe(true);
+        expect(payload.diagnostics?.selected.ranking.total).toBeGreaterThan(0);
+        expect(payload.diagnostics?.candidates).toHaveLength(2);
+    });
+
     it("returns git context error code when no staged changes exist", async () => {
         const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
         await initRepo(repoDir);
@@ -122,6 +189,106 @@ describe("cli e2e", () => {
         expect(payload.status).toBe("error");
         expect(payload.code).toBe("GIT_CONTEXT_ERROR");
         expect(payload.hint).toContain("Stage files first");
+    });
+
+    it("prints explain output in single-candidate dry-run text mode", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
+        await initRepo(repoDir);
+        await writeFile(join(repoDir, "README.md"), "# Demo\n");
+        const bootstrapPath = await writeMockFetch(repoDir);
+        await execa("git", ["checkout", "-b", "feature/ABC-123-readme"], { cwd: repoDir });
+        await execa("git", ["add", "README.md"], { cwd: repoDir });
+
+        const { stdout, exitCode } = await execa(getNodeBin(), [
+            "--import",
+            bootstrapPath,
+            getCliPath(),
+            "--dry-run",
+            "--explain"
+        ], {
+            cwd: repoDir,
+            env: {
+                MOCK_OLLAMA_MODELS: JSON.stringify(["gpt-oss:120b-cloud:latest"]),
+                MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
+                    "{\"message\":\"docs: update readme\"}"
+                ])
+            }
+        });
+
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain("docs: update readme");
+        expect(stdout).toContain("Why this message");
+        expect(stdout).toContain("selected ticket: ABC-123 (branch inference)");
+        expect(stdout).toContain("ranking:");
+    });
+
+    it("prints explain output with alternatives in multi-candidate dry-run text mode", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
+        await initRepo(repoDir);
+        await writeFile(join(repoDir, "README.md"), "# Demo\n");
+        const bootstrapPath = await writeMockFetch(repoDir);
+        await execa("git", ["checkout", "-b", "feature/ABC-123-readme"], { cwd: repoDir });
+        await execa("git", ["add", "README.md"], { cwd: repoDir });
+
+        const { stdout, exitCode } = await execa(getNodeBin(), [
+            "--import",
+            bootstrapPath,
+            getCliPath(),
+            "--dry-run",
+            "--candidates",
+            "2",
+            "--explain"
+        ], {
+            cwd: repoDir,
+            env: {
+                MOCK_OLLAMA_MODELS: JSON.stringify(["gpt-oss:120b-cloud:latest"]),
+                MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
+                    "{\"messages\":[\"docs: update readme\",\"docs: refine readme guidance\"]}"
+                ])
+            }
+        });
+
+        expect(exitCode).toBe(0);
+        expect(stdout).toContain("Why this message");
+        expect(stdout).toContain("alternatives: 1");
+    });
+
+    it("shows full validation errors in explain mode when generation is invalid", async () => {
+        const repoDir = await mkdtemp(join(tmpdir(), "git-ai-commit-e2e-"));
+        await initRepo(repoDir);
+        await mkdir(join(repoDir, "src"), { recursive: true });
+        await writeFile(join(repoDir, "src", "cli.ts"), "export const x = 1;\n");
+        await writeFile(join(repoDir, ".commitgen.json"), JSON.stringify({
+            requireTicket: true,
+            requiredScopes: ["cli"]
+        }, null, 2));
+        const bootstrapPath = await writeMockFetch(repoDir);
+        await execa("git", ["add", "src/cli.ts"], { cwd: repoDir });
+
+        const result = await execa(getNodeBin(), [
+            "--import",
+            bootstrapPath,
+            getCliPath(),
+            "--dry-run",
+            "--config",
+            ".commitgen.json",
+            "--explain"
+        ], {
+            cwd: repoDir,
+            env: {
+                MOCK_OLLAMA_MODELS: JSON.stringify(["gpt-oss:120b-cloud:latest"]),
+                MOCK_OLLAMA_CHAT_RESPONSES: JSON.stringify([
+                    "{\"message\":\"bad message\"}"
+                ])
+            },
+            reject: false
+        });
+
+        expect(result.exitCode).toBe(4);
+        expect(result.stderr).toContain("AI output failed validation: Not Conventional Commits format");
+        expect(result.stderr).toContain("Not Conventional Commits format");
+        expect(result.stderr).toContain("Scope is required and must be one of: cli.");
+        expect(result.stderr).toContain("Message must reference a ticket.");
     });
 
     it("installs and uninstalls managed hooks", async () => {
