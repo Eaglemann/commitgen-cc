@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankCandidates, scoreCandidate } from "../../src/ranking.js";
+import { getScoreBreakdown, rankCandidates, scoreCandidate } from "../../src/ranking.js";
 
 describe("scoreCandidate", () => {
     it("prefers valid, context-matching candidates over generic invalid ones", () => {
@@ -41,5 +41,20 @@ describe("rankCandidates", () => {
         });
 
         expect(candidates[0].message).toBe("feat(cli): add config support\n\nRefs ABC-123");
+    });
+
+    it("exposes score breakdown details for explain mode", () => {
+        const breakdown = getScoreBreakdown("feat(cli): add config support\n\nRefs ABC-123", { ok: true }, {
+            expectedType: "feat",
+            expectedScope: "cli",
+            ticket: "ABC-123",
+            subjectMaxLength: 72
+        });
+
+        expect(breakdown.valid).toBe(true);
+        expect(breakdown.expectedTypeMatch).toBe(true);
+        expect(breakdown.expectedScopeMatch).toBe(true);
+        expect(breakdown.ticketFooterPresent).toBe(true);
+        expect(breakdown.total).toBe(1_111_100);
     });
 });
