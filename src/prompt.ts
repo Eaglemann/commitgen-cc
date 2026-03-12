@@ -1,7 +1,6 @@
 import type { ChatMessage } from "./ollama.js";
 import type { CommitPolicy } from "./policy.js";
-
-type AllowedType = "feat" | "fix" | "chore" | "refactor" | "docs" | "test" | "perf" | "build" | "ci";
+import type { AllowedType } from "./validation.js";
 
 const DEFAULT_PROMPT_FILE_HINTS = 10;
 const DEFAULT_PROMPT_HISTORY_EXAMPLES = 3;
