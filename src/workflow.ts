@@ -24,12 +24,12 @@ import { runInteractive } from "./interactive.js";
 export type OutputFormat = "text" | "json";
 export type MessageSource = "model" | "repaired";
 
-const MIN_MAX_CHARS = 500;
-const MAX_MAX_CHARS = 200000;
+export const MIN_MAX_CHARS = 500;
+export const MAX_MAX_CHARS = 200000;
+export const MIN_CANDIDATES = 1;
+export const MAX_CANDIDATES = 5;
 const MIN_HISTORY_SAMPLE_SIZE = 1;
 const MAX_HISTORY_SAMPLE_SIZE = 25;
-const MIN_CANDIDATES = 1;
-const MAX_CANDIDATES = 5;
 
 export type WorkflowOptions = {
     model: string | null;

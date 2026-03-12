@@ -2,10 +2,10 @@ import { DEFAULT_RETRIES, DEFAULT_TIMEOUT_MS } from "./config.js";
 import { parseBoundedInteger } from "./util.js";
 import type { WorkflowOptions } from "./workflow.js";
 
-const MIN_TIMEOUT_MS = 1000;
-const MAX_TIMEOUT_MS = 300000;
-const MIN_RETRIES = 0;
-const MAX_RETRIES = 5;
+export const MIN_TIMEOUT_MS = 1000;
+export const MAX_TIMEOUT_MS = 300000;
+export const MIN_RETRIES = 0;
+export const MAX_RETRIES = 5;
 
 export function readEnv(name: string): string | null {
     const value = process.env[name]?.trim();
