@@ -13,11 +13,11 @@ import { WorkflowError } from "./workflow-errors.js";
 const MANAGED_MARKER = "# commitgen-cc managed hook";
 const MANAGED_HOOKS = ["prepare-commit-msg", "commit-msg"] as const;
 
-function quoteShell(value: string): string {
+export function quoteShell(value: string): string {
     return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
-function buildHookScript(
+export function buildHookScript(
     hookName: typeof MANAGED_HOOKS[number],
     nodePath: string,
     cliPath: string,
@@ -96,7 +96,7 @@ export async function uninstallHooks(): Promise<string[]> {
     return removed;
 }
 
-function shouldSkipPrepareHook(source: string | undefined): boolean {
+export function shouldSkipPrepareHook(source: string | undefined): boolean {
     if (!source) return false;
     return ["message", "template", "merge", "squash", "commit"].includes(source);
 }
@@ -158,16 +158,6 @@ export async function runCommitMsgHook(messageFile: string, configPath: string |
         console.error(`commitgen-cc: ${normalizeErrorMessage(error, "commit-msg hook failed.")}`);
         return ExitCode.UsageError;
     }
-}
-
-export function formatHookInstallMessage(paths: string[]): string {
-    if (paths.length === 0) return "No hooks were installed.";
-    return `Installed hooks:\n${paths.map((path) => `- ${path}`).join("\n")}`;
-}
-
-export function formatHookUninstallMessage(paths: string[]): string {
-    if (paths.length === 0) return "No managed hooks were removed.";
-    return `Removed hooks:\n${paths.map((path) => `- ${path}`).join("\n")}`;
 }
 
 export function formatHookError(error: unknown): string {
