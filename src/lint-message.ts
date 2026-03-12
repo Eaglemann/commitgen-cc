@@ -47,7 +47,7 @@ function toErrorResult(error: unknown, fallbackCode: Exclude<ExitCode, ExitCode.
     };
 }
 
-function stripCommentLines(message: string): string {
+export function stripCommentLines(message: string): string {
     return message
         .replace(/\r\n?/g, "\n")
         .split("\n")
