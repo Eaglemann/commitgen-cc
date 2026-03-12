@@ -21,20 +21,11 @@ import {
     renderStateCard,
     renderValidationBlock
 } from "./ui.js";
-import { buildDefaultWorkflowOptions } from "./workflow-options.js";
+import { buildDefaultWorkflowOptions, MAX_RETRIES, MAX_TIMEOUT_MS, MIN_RETRIES, MIN_TIMEOUT_MS } from "./workflow-options.js";
 import { parseBoundedInteger } from "./util.js";
 import { isAllowedType, type AllowedType } from "./validation.js";
-import { runWorkflow, type OutputFormat, type WorkflowOptions, type WorkflowResult } from "./workflow.js";
+import { MAX_CANDIDATES, MAX_MAX_CHARS, MIN_CANDIDATES, MIN_MAX_CHARS, runWorkflow, type OutputFormat, type WorkflowOptions, type WorkflowResult } from "./workflow.js";
 import { WorkflowError } from "./workflow-errors.js";
-
-const MIN_MAX_CHARS = 500;
-const MAX_MAX_CHARS = 200000;
-const MIN_TIMEOUT_MS = 1000;
-const MAX_TIMEOUT_MS = 300000;
-const MIN_RETRIES = 0;
-const MAX_RETRIES = 5;
-const MIN_CANDIDATES = 1;
-const MAX_CANDIDATES = 5;
 
 type RawCliOptions = {
     model?: string;
