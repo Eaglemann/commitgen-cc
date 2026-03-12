@@ -1,6 +1,6 @@
 {
   "name": "commitgen-cc",
-  "version": "4.0.4",
+  "version": "4.1.0",
   "description": "AI git commit messages using local Ollama",
   "main": "dist/cli.js",
   "scripts": {
