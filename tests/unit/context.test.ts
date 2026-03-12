@@ -2,20 +2,20 @@ import { describe, expect, it } from "vitest";
 import { inferScopeFromFiles, inferTicketFromBranch } from "../../src/context.js";
 
 describe("inferScopeFromFiles", () => {
-    it("returns the dominant top-level directory when it covers at least 60 percent", () => {
+    it("returns null when top-level dirs are structural noise (src)", () => {
         expect(inferScopeFromFiles([
             "src/cli.ts",
             "src/workflow.ts",
             "README.md"
-        ])).toBe("src");
+        ])).toBeNull();
     });
 
-    it("returns null when no top-level directory reaches the threshold", () => {
+    it("returns stem when source and test files share the same module name", () => {
         expect(inferScopeFromFiles([
             "src/cli.ts",
             "tests/cli.test.ts",
             "README.md"
-        ])).toBeNull();
+        ])).toBe("cli");
     });
 
     it("prefers configured scope mappings when they cover the threshold", () => {
@@ -26,6 +26,58 @@ describe("inferScopeFromFiles", () => {
         ], {
             "src/cli": "cli"
         })).toBe("cli");
+    });
+
+    it("returns file stem for a single test file (strips .test suffix)", () => {
+        expect(inferScopeFromFiles([
+            "tests/unit/workflow.test.ts"
+        ])).toBe("workflow");
+    });
+
+    it("returns file stem for a single spec file", () => {
+        expect(inferScopeFromFiles([
+            "tests/unit/candidates.spec.ts"
+        ])).toBe("candidates");
+    });
+
+    it("returns parent dir when stems diverge but directory is shared", () => {
+        expect(inferScopeFromFiles([
+            "src/api/users.ts",
+            "src/api/posts.ts"
+        ])).toBe("api");
+    });
+
+    it("returns parent dir for components with diverging stems", () => {
+        expect(inferScopeFromFiles([
+            "src/components/Button.tsx",
+            "src/components/Modal.tsx"
+        ])).toBe("components");
+    });
+
+    it("falls back to parent dir when stem is index", () => {
+        expect(inferScopeFromFiles([
+            "src/dashboard/index.ts"
+        ])).toBe("dashboard");
+    });
+
+    it("returns null when all dirs are noise and stems diverge", () => {
+        expect(inferScopeFromFiles([
+            "tests/unit/foo.test.ts",
+            "tests/unit/bar.test.ts"
+        ])).toBeNull();
+    });
+
+    it("returns null for empty file list", () => {
+        expect(inferScopeFromFiles([])).toBeNull();
+    });
+
+    it("returns null when no threshold is met across scattered files", () => {
+        expect(inferScopeFromFiles([
+            "src/cli.ts",
+            "tests/cli.test.ts",
+            "docs/guide.md",
+            "README.md"
+        ])).toBeNull();
     });
 });
 
